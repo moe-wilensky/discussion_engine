@@ -1,0 +1,858 @@
+openapi: 3.0.3
+info:
+  title: Discussion Engine API
+  version: 1.0.0
+  description: API for multi-round discussion platform with invite system
+paths:
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Request login verification code
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneVerificationResponse'
+          description: ''
+        '400':
+          description: Invalid phone number
+  /api/auth/login/verify/:
+    post:
+      operationId: auth_login_verify_create
+      description: Verify login code and get tokens
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: User authenticated
+        '400':
+          description: Invalid code
+  /api/auth/register/request-verification/:
+    post:
+      operationId: auth_register_request_verification_create
+      description: Request SMS verification code for registration
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneVerificationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneVerificationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneVerificationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneVerificationResponse'
+          description: ''
+        '400':
+          description: Validation error
+  /api/auth/register/verify/:
+    post:
+      operationId: auth_register_verify_create
+      description: Verify code and complete registration
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyCode'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: User created and authenticated
+        '400':
+          description: Invalid code or invite
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/discussions/{discussion_id}/join-request/:
+    post:
+      operationId: discussions_join_request_create
+      description: Request to join a discussion
+      parameters:
+      - in: path
+        name: discussion_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - discussions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequestCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JoinRequestCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JoinRequestCreate'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+          description: ''
+        '400':
+          description: Cannot create request
+  /api/discussions/{discussion_id}/join-requests/:
+    get:
+      operationId: discussions_join_requests_list
+      description: Get pending join requests for discussion
+      parameters:
+      - in: path
+        name: discussion_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - discussions
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JoinRequest'
+          description: ''
+  /api/invites/{invite_id}/accept/:
+    post:
+      operationId: invites_accept_create
+      description: Accept a discussion invite
+      parameters:
+      - in: path
+        name: invite_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - invites
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: Invite accepted
+        '400':
+          description: Cannot accept invite
+  /api/invites/{invite_id}/decline/:
+    post:
+      operationId: invites_decline_create
+      description: Decline a discussion invite
+      parameters:
+      - in: path
+        name: invite_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - invites
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: Invite declined
+        '400':
+          description: Cannot decline invite
+  /api/invites/discussion/send/:
+    post:
+      operationId: invites_discussion_send_create
+      description: Send discussion invite to user
+      tags:
+      - invites
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscussionInviteSend'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DiscussionInviteSend'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DiscussionInviteSend'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionInviteResponse'
+          description: ''
+        '400':
+          description: Cannot send invite
+  /api/invites/me/:
+    get:
+      operationId: invites_me_retrieve
+      description: Get current user's invite statistics
+      tags:
+      - invites
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInviteStats'
+          description: ''
+  /api/invites/platform/accept/:
+    post:
+      operationId: invites_platform_accept_create
+      description: Accept platform invite (used during registration)
+      tags:
+      - invites
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformInviteAccept'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PlatformInviteAccept'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PlatformInviteAccept'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: Invite accepted
+        '400':
+          description: Invalid invite code
+  /api/invites/platform/send/:
+    post:
+      operationId: invites_platform_send_create
+      description: Generate platform invite code
+      tags:
+      - invites
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformInviteResponse'
+          description: ''
+        '400':
+          description: Cannot send invite
+  /api/invites/received/:
+    get:
+      operationId: invites_received_list
+      description: Get invites received by current user
+      tags:
+      - invites
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invite'
+          description: ''
+  /api/join-requests/{request_id}/approve/:
+    post:
+      operationId: join_requests_approve_create
+      description: Approve join request
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - join-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: Request approved
+        '400':
+          description: Cannot approve request
+  /api/join-requests/{request_id}/decline/:
+    post:
+      operationId: join_requests_decline_create
+      description: Decline join request
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - join-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JoinRequestAction'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: Request declined
+        '400':
+          description: Cannot decline request
+  /api/onboarding/suggested-discussions/:
+    get:
+      operationId: onboarding_suggested_discussions_list
+      description: Get suggested discussions for new users
+      tags:
+      - onboarding
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DiscussionSummary'
+          description: ''
+  /api/onboarding/tutorial/:
+    get:
+      operationId: onboarding_tutorial_list
+      description: Get onboarding tutorial steps
+      tags:
+      - onboarding
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TutorialStep'
+          description: ''
+  /api/onboarding/tutorial/complete/:
+    post:
+      operationId: onboarding_tutorial_complete_create
+      description: Mark tutorial as completed
+      tags:
+      - onboarding
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: Tutorial marked complete
+  /api/users/{user_id}/invite-metrics/:
+    get:
+      operationId: users_invite_metrics_retrieve
+      description: Get public invite metrics for any user
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInviteStats'
+          description: ''
+components:
+  schemas:
+    DiscussionInviteResponse:
+      type: object
+      description: Discussion invite response.
+      properties:
+        invite_id:
+          type: integer
+        invitee:
+          type: string
+        discussion:
+          type: string
+      required:
+      - discussion
+      - invite_id
+      - invitee
+    DiscussionInviteSend:
+      type: object
+      description: Send discussion invite.
+      properties:
+        discussion_id:
+          type: integer
+        invitee_user_id:
+          type: integer
+      required:
+      - discussion_id
+      - invitee_user_id
+    DiscussionSummary:
+      type: object
+      description: Discussion summary for onboarding.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        topic_headline:
+          type: string
+          readOnly: true
+        topic_details:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DiscussionSummaryStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        participant_count:
+          type: integer
+          readOnly: true
+        response_count:
+          type: integer
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - participant_count
+      - response_count
+      - status
+      - topic_details
+      - topic_headline
+    DiscussionSummaryStatusEnum:
+      enum:
+      - active
+      - archived
+      type: string
+      description: |-
+        * `active` - Active
+        * `archived` - Archived
+    Invite:
+      type: object
+      description: Invite serialization.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        invite_type:
+          $ref: '#/components/schemas/InviteTypeEnum'
+        status:
+          $ref: '#/components/schemas/InviteStatusEnum'
+        inviter:
+          type: integer
+        inviter_username:
+          type: string
+          readOnly: true
+        invitee:
+          type: integer
+          nullable: true
+        invitee_username:
+          type: string
+          readOnly: true
+        discussion:
+          type: integer
+          nullable: true
+        discussion_headline:
+          type: string
+          readOnly: true
+        sent_at:
+          type: string
+          format: date-time
+          readOnly: true
+        accepted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        first_participation_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - accepted_at
+      - discussion_headline
+      - first_participation_at
+      - id
+      - invite_type
+      - invitee_username
+      - inviter
+      - inviter_username
+      - sent_at
+    InviteMetrics:
+      type: object
+      description: Invite metrics for a user.
+      properties:
+        acquired:
+          type: integer
+        used:
+          type: integer
+        banked:
+          type: integer
+        can_send:
+          type: boolean
+        responses_needed_to_unlock:
+          type: integer
+      required:
+      - acquired
+      - banked
+      - can_send
+      - used
+    InviteStatusEnum:
+      enum:
+      - sent
+      - accepted
+      - declined
+      - expired
+      type: string
+      description: |-
+        * `sent` - Sent
+        * `accepted` - Accepted
+        * `declined` - Declined
+        * `expired` - Expired
+    InviteTypeEnum:
+      enum:
+      - platform
+      - discussion
+      type: string
+      description: |-
+        * `platform` - Platform
+        * `discussion` - Discussion
+    JoinRequest:
+      type: object
+      description: Join request serialization.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/JoinRequestStatusEnum'
+        requester:
+          type: integer
+        requester_username:
+          type: string
+          readOnly: true
+        approver:
+          type: integer
+        approver_username:
+          type: string
+          readOnly: true
+        discussion:
+          type: integer
+        discussion_headline:
+          type: string
+          readOnly: true
+        request_message:
+          type: string
+        response_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        requester_platform_invites:
+          type: string
+          readOnly: true
+        requester_discussion_invites:
+          type: string
+          readOnly: true
+      required:
+      - approver
+      - approver_username
+      - created_at
+      - discussion
+      - discussion_headline
+      - id
+      - requester
+      - requester_discussion_invites
+      - requester_platform_invites
+      - requester_username
+      - resolved_at
+    JoinRequestAction:
+      type: object
+      description: Approve/decline join request.
+      properties:
+        response_message:
+          type: string
+          maxLength: 500
+    JoinRequestCreate:
+      type: object
+      description: Create join request.
+      properties:
+        message:
+          type: string
+          maxLength: 500
+    JoinRequestStatusEnum:
+      enum:
+      - pending
+      - approved
+      - declined
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `approved` - Approved
+        * `declined` - Declined
+    Login:
+      type: object
+      description: Login request.
+      properties:
+        phone_number:
+          type: string
+      required:
+      - phone_number
+    PhoneVerificationRequest:
+      type: object
+      description: Request phone verification code.
+      properties:
+        phone_number:
+          type: string
+      required:
+      - phone_number
+    PhoneVerificationResponse:
+      type: object
+      description: Response with verification ID.
+      properties:
+        verification_id:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+        message:
+          type: string
+      required:
+      - expires_at
+      - message
+      - verification_id
+    PlatformInviteAccept:
+      type: object
+      description: Accept platform invite.
+      properties:
+        invite_code:
+          type: string
+          maxLength: 8
+          minLength: 8
+      required:
+      - invite_code
+    PlatformInviteResponse:
+      type: object
+      description: Platform invite creation response.
+      properties:
+        invite_code:
+          type: string
+        invite_url:
+          type: string
+        invite_id:
+          type: integer
+      required:
+      - invite_code
+      - invite_id
+      - invite_url
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TutorialStep:
+      type: object
+      description: Tutorial step.
+      properties:
+        step:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        media:
+          type: string
+          nullable: true
+      required:
+      - content
+      - step
+      - title
+    UserInviteStats:
+      type: object
+      description: Complete invite statistics for user.
+      properties:
+        platform_invites:
+          $ref: '#/components/schemas/InviteMetrics'
+        discussion_invites:
+          $ref: '#/components/schemas/InviteMetrics'
+        total_responses:
+          type: integer
+      required:
+      - discussion_invites
+      - platform_invites
+      - total_responses
+    VerifyCode:
+      type: object
+      description: Verify code and optional invite.
+      properties:
+        verification_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          maxLength: 6
+          minLength: 6
+        invite_code:
+          type: string
+        username:
+          type: string
+          maxLength: 150
+          minLength: 3
+      required:
+      - code
+      - username
+      - verification_id
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

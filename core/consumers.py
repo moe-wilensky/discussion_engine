@@ -1,0 +1,263 @@
+"""
+WebSocket consumer for real-time discussion updates.
+
+Handles real-time updates for:
+- New responses
+- MRP recalculation
+- Round status changes
+- MRP expiration warnings
+"""
+
+import json
+from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+
+
+class DiscussionConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket consumer for discussion updates.
+    
+    Clients connect to: ws://host/ws/discussions/{discussion_id}/
+    """
+    
+    async def connect(self):
+        """Handle WebSocket connection."""
+        self.discussion_id = self.scope['url_route']['kwargs']['discussion_id']
+        self.room_group_name = f'discussion_{self.discussion_id}'
+        
+        # Join discussion channel
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        
+        await self.accept()
+    
+    async def disconnect(self, close_code):
+        """Handle WebSocket disconnection."""
+        # Leave discussion channel
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+    
+    async def receive(self, text_data):
+        """
+        Receive message from WebSocket.
+        
+        Not used for this consumer - clients only receive updates.
+        """
+        pass
+    
+    async def new_response(self, event):
+        """
+        Broadcast new response notification.
+        
+        Event structure:
+        {
+            'type': 'new_response',
+            'response_id': <id>,
+            'author': <username>,
+            'round_number': <number>,
+            'response_number': <number>,
+            'mrp_updated': <bool>,
+            'new_mrp_minutes': <float>,
+            'new_mrp_deadline': <iso_datetime>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'new_response',
+            'response_id': event['response_id'],
+            'author': event['author'],
+            'round_number': event['round_number'],
+            'response_number': event['response_number'],
+            'mrp_updated': event.get('mrp_updated', False),
+            'new_mrp_minutes': event.get('new_mrp_minutes'),
+            'new_mrp_deadline': event.get('new_mrp_deadline')
+        }))
+    
+    async def mrp_warning(self, event):
+        """
+        Broadcast MRP expiration warning.
+        
+        Event structure:
+        {
+            'type': 'mrp_warning',
+            'round_number': <number>,
+            'percentage_remaining': <percentage>,
+            'time_remaining_minutes': <float>,
+            'mrp_deadline': <iso_datetime>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'mrp_warning',
+            'round_number': event['round_number'],
+            'percentage_remaining': event['percentage_remaining'],
+            'time_remaining_minutes': event['time_remaining_minutes'],
+            'mrp_deadline': event['mrp_deadline']
+        }))
+    
+    async def round_ended(self, event):
+        """
+        Broadcast round ended notification.
+        
+        Event structure:
+        {
+            'type': 'round_ended',
+            'round_number': <number>,
+            'reason': <string>,
+            'voting_starts': <iso_datetime>,
+            'voting_ends': <iso_datetime>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'round_ended',
+            'round_number': event['round_number'],
+            'reason': event.get('reason', 'all_responded'),
+            'voting_starts': event.get('voting_starts'),
+            'voting_ends': event.get('voting_ends')
+        }))
+    
+    async def mrp_expired(self, event):
+        """
+        Broadcast MRP expiration notification.
+        
+        Event structure:
+        {
+            'type': 'mrp_expired',
+            'round_number': <number>,
+            'observers_added': [<user_ids>]
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'mrp_expired',
+            'round_number': event['round_number'],
+            'observers_added': event.get('observers_added', [])
+        }))
+    
+    async def discussion_archived(self, event):
+        """
+        Broadcast discussion archived notification.
+        
+        Event structure:
+        {
+            'type': 'discussion_archived',
+            'reason': <string>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'discussion_archived',
+            'reason': event.get('reason', 'unknown')
+        }))
+    
+    async def voting_started(self, event):
+        """
+        Broadcast voting window opened notification.
+        
+        Event structure:
+        {
+            'type': 'voting_started',
+            'round_number': <number>,
+            'voting_closes_at': <iso_datetime>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'voting_started',
+            'round_number': event['round_number'],
+            'voting_closes_at': event.get('voting_closes_at')
+        }))
+    
+    async def voting_updated(self, event):
+        """
+        Broadcast voting update notification.
+        
+        Event structure:
+        {
+            'type': 'voting_updated',
+            'round_number': <number>,
+            'parameter': 'mrl' or 'rtm' or 'removal',
+            'votes_cast': <count>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'voting_updated',
+            'round_number': event['round_number'],
+            'parameter': event.get('parameter'),
+            'votes_cast': event.get('votes_cast')
+        }))
+    
+    async def voting_closed(self, event):
+        """
+        Broadcast voting window closed notification.
+        
+        Event structure:
+        {
+            'type': 'voting_closed',
+            'round_number': <number>,
+            'mrl_result': <string>,
+            'rtm_result': <string>,
+            'users_removed': [<user_ids>]
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'voting_closed',
+            'round_number': event['round_number'],
+            'mrl_result': event.get('mrl_result'),
+            'rtm_result': event.get('rtm_result'),
+            'users_removed': event.get('users_removed', [])
+        }))
+    
+    async def parameter_changed(self, event):
+        """
+        Broadcast parameter change notification.
+        
+        Event structure:
+        {
+            'type': 'parameter_changed',
+            'parameter': 'mrl' or 'rtm',
+            'old_value': <value>,
+            'new_value': <value>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'parameter_changed',
+            'parameter': event['parameter'],
+            'old_value': event.get('old_value'),
+            'new_value': event.get('new_value')
+        }))
+    
+    async def user_removed(self, event):
+        """
+        Broadcast user removal notification.
+        
+        Event structure:
+        {
+            'type': 'user_removed',
+            'user_id': <id>,
+            'username': <string>,
+            'reason': 'vote_based_removal'
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'user_removed',
+            'user_id': event['user_id'],
+            'username': event.get('username'),
+            'reason': event.get('reason')
+        }))
+    
+    async def next_round_started(self, event):
+        """
+        Broadcast next round started notification.
+        
+        Event structure:
+        {
+            'type': 'next_round_started',
+            'round_number': <number>,
+            'discussion_id': <id>
+        }
+        """
+        await self.send(text_data=json.dumps({
+            'type': 'next_round_started',
+            'round_number': event['round_number'],
+            'discussion_id': event['discussion_id']
+        }))
