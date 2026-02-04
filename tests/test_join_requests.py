@@ -24,13 +24,9 @@ class TestJoinRequestService:
     def test_create_join_request(self, user_factory, discussion_factory):
         """Test creating join request."""
         requester = user_factory()
-        discussion = discussion_factory()
         initiator = user_factory()
-
-        # Add initiator as participant
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=initiator, role="active"
-        )
+        discussion = discussion_factory(initiator=initiator)
+        # Initiator already has DiscussionParticipant with role="initiator" from factory
 
         with patch("core.tasks.send_join_request_notification.delay"):
             request = JoinRequestService.create_request(
@@ -60,9 +56,10 @@ class TestJoinRequestService:
         """Test cannot create request if discussion at capacity."""
         config = PlatformConfig.objects.get(pk=1)
         discussion = discussion_factory()
+        # Discussion already has 1 participant (initiator) from factory
 
-        # Fill discussion to capacity
-        for _ in range(config.max_discussion_participants):
+        # Fill discussion to capacity (minus the 1 that already exists)
+        for _ in range(config.max_discussion_participants - 1):
             user = user_factory()
             DiscussionParticipant.objects.create(
                 discussion=discussion, user=user, role="active"
@@ -78,12 +75,9 @@ class TestJoinRequestService:
     def test_create_request_duplicate(self, user_factory, discussion_factory):
         """Test cannot create duplicate pending request."""
         requester = user_factory()
-        discussion = discussion_factory()
         initiator = user_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=initiator, role="active"
-        )
+        discussion = discussion_factory(initiator=initiator)
+        # Initiator already has DiscussionParticipant with role="initiator" from factory
 
         with patch("core.tasks.send_join_request_notification.delay"):
             JoinRequestService.create_request(discussion, requester)
@@ -97,11 +91,8 @@ class TestJoinRequestService:
         """Test approving join request."""
         requester = user_factory()
         approver = user_factory()
-        discussion = discussion_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
 
         request = JoinRequest.objects.create(
             discussion=discussion,
@@ -126,11 +117,8 @@ class TestJoinRequestService:
         requester = user_factory()
         approver = user_factory()
         other_user = user_factory()
-        discussion = discussion_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
 
         request = JoinRequest.objects.create(
             discussion=discussion,
@@ -148,11 +136,8 @@ class TestJoinRequestService:
         """Test declining join request."""
         requester = user_factory()
         approver = user_factory()
-        discussion = discussion_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
 
         request = JoinRequest.objects.create(
             discussion=discussion,
@@ -185,12 +170,9 @@ class TestJoinRequestAPI:
         self, authenticated_client, user_factory, discussion_factory
     ):
         """Test creating join request via API."""
-        discussion = discussion_factory()
         initiator = user_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=initiator, role="active"
-        )
+        discussion = discussion_factory(initiator=initiator)
+        # Initiator already has DiscussionParticipant with role="initiator" from factory
 
         with patch("core.tasks.send_join_request_notification.delay"):
             response = authenticated_client.post(

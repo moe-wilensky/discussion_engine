@@ -194,14 +194,10 @@ class TestJoinRequestAPIErrors:
         self, authenticated_client, discussion_factory, user_factory
     ):
         """Test approving join request when not a participant."""
-        discussion = discussion_factory()
         requester = user_factory()
-        approver = user_factory()  # Different user who is NOT a participant
-
-        # Create participant who will serve as approver in the model
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        approver = user_factory()
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
 
         join_request = JoinRequest.objects.create(
             discussion=discussion,

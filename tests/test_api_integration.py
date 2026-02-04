@@ -169,12 +169,8 @@ class TestCompleteJoinRequestFlow:
         """Test complete join request from request to approval."""
         requester = user_factory()
         approver = user_factory()
-        discussion = discussion_factory()
-
-        # Setup: Approver is participant
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
 
         # Step 1: Requester creates join request
         from rest_framework.test import APIClient

@@ -177,3 +177,69 @@ def browser_context_args(browser_context_args):
         **browser_context_args,
         "ignore_https_errors": True,
     }
+
+
+# E2E Testing Helpers for Playwright
+@pytest.fixture
+def login_user(live_server):
+    """Helper function to login a user via Playwright."""
+    from playwright.sync_api import Page
+    
+    def _login(page: Page, user, password="testpass123"):
+        """Login a user through the UI."""
+        # Navigate to login page
+        page.goto(f"{live_server.url}/auth/login/")
+        page.wait_for_load_state("networkidle")
+        
+        # Fill in the login form
+        page.fill('input[name="username"]', user.username)
+        page.fill('input[name="password"]', password)
+        
+        # Submit the form
+        page.click('button[type="submit"]')
+        
+        # Wait for redirect after successful login
+        page.wait_for_load_state("networkidle")
+        
+        return page
+    
+    return _login
+
+
+@pytest.fixture
+def create_verified_user(user_factory):
+    """Create a verified user ready for testing."""
+    def _create_user(username=None, **kwargs):
+        defaults = {
+            "phone_verified": True,
+            "platform_invites_banked": 5,
+            "discussion_invites_banked": 10,
+        }
+        defaults.update(kwargs)
+        
+        user = user_factory(username=username, **defaults)
+        user.set_password("testpass123")
+        user.save()
+        
+        return user
+    
+    return _create_user
+
+
+@pytest.fixture
+def mock_twilio(monkeypatch):
+    """Mock Twilio SMS verification for E2E tests."""
+    def mock_send_verification(phone_number):
+        """Mock verification code sending."""
+        return True
+    
+    def mock_check_verification(phone_number, code):
+        """Mock verification code checking - accept any 6-digit code."""
+        return code and len(code) == 6
+    
+    # Patch the Twilio service methods
+    from core.auth import registration
+    monkeypatch.setattr(registration, "send_verification_code", mock_send_verification)
+    monkeypatch.setattr(registration, "check_verification_code", mock_check_verification)
+    
+    return True

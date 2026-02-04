@@ -25,17 +25,6 @@ from core.services.mutual_removal_service import MutualRemovalService
 from core.services.notification_service import NotificationService
 
 
-def ensure_participant(discussion, user, role="active"):
-    """Helper to get or create a participant (factory may create initiator)"""
-    participant, created = DiscussionParticipant.objects.get_or_create(
-        discussion=discussion, user=user, defaults={"role": role}
-    )
-    if not created and participant.role != role:
-        participant.role = role
-        participant.save()
-    return participant
-
-
 @pytest.mark.django_db
 class TestMutualRemoval:
     """Tests for mutual removal system"""
@@ -51,9 +40,13 @@ class TestMutualRemoval:
             discussion=discussion, round_number=1, status="in_progress"
         )
 
-        # Ensure participants exist
-        participant_a = ensure_participant(discussion, user_a, "initiator")
-        participant_b = ensure_participant(discussion, user_b, "active")
+        # Get/create participants (initiator already exists from factory)
+        participant_a = DiscussionParticipant.objects.get(
+            discussion=discussion, user=user_a
+        )
+        participant_b = DiscussionParticipant.objects.create(
+            discussion=discussion, user=user_b, role="active"
+        )
 
         # Execute mutual removal
         moderation_action = MutualRemovalService.initiate_removal(
@@ -95,10 +88,11 @@ class TestMutualRemoval:
             discussion=discussion, round_number=1, status="in_progress"
         )
 
-        # Ensure participants exist
-        for user in [user_a, user_b, user_c, user_d]:
-            role = "initiator" if user == user_a else "active"
-            ensure_participant(discussion, user, role)
+        # Create participants (user_a already exists as initiator from factory)
+        for user in [user_b, user_c, user_d]:
+            DiscussionParticipant.objects.create(
+                discussion=discussion, user=user, role="active"
+            )
 
         # First removal
         MutualRemovalService.initiate_removal(user_a, user_b, discussion, round_obj)
@@ -139,8 +133,10 @@ class TestMutualRemoval:
             discussion=discussion, round_number=1, status="in_progress"
         )
 
-        ensure_participant(discussion, user_a, "initiator")
-        ensure_participant(discussion, user_b, "active")
+        # Get initiator (already exists) and create user_b
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=user_b, role="active"
+        )
 
         # First removal
         MutualRemovalService.initiate_removal(user_a, user_b, discussion, round_obj)
@@ -248,8 +244,10 @@ class TestNotifications:
             discussion=discussion, round_number=1, status="in_progress"
         )
 
-        ensure_participant(discussion, user_a, "initiator")
-        ensure_participant(discussion, user_b, "active")
+        # Get initiator (already exists) and create user_b
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=user_b, role="active"
+        )
 
         for user in [user_a, user_b]:
             NotificationService.create_notification_preferences(user)
@@ -284,10 +282,14 @@ class TestIntegration:
             discussion=discussion, round_number=1, status="in_progress"
         )
 
-        # Ensure participants
+        # Create participants (user_a already exists as initiator from factory)
+        for user in [user_b, user_c, user_d]:
+            DiscussionParticipant.objects.create(
+                discussion=discussion, user=user, role="active"
+            )
+
+        # Create notification preferences for all users
         for user in [user_a, user_b, user_c, user_d]:
-            role = "initiator" if user == user_a else "active"
-            ensure_participant(discussion, user, role)
             NotificationService.create_notification_preferences(user)
 
         # User A removes User B

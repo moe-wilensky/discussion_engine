@@ -122,16 +122,16 @@ class InviteService:
         Raises:
             ValidationError: If invite cannot be sent
         """
-        # Validate inviter is active participant
+        # Validate inviter is active participant (includes initiators)
         if not DiscussionParticipant.objects.filter(
-            discussion=discussion, user=inviter, role="active"
+            discussion=discussion, user=inviter, role__in=["initiator", "active"]
         ).exists():
             raise ValidationError("Only active participants can send invites")
 
         # Check if discussion is at cap
         config = PlatformConfig.objects.get(pk=1)
         current_participants = DiscussionParticipant.objects.filter(
-            discussion=discussion, role="active"
+            discussion=discussion, role__in=["initiator", "active"]
         ).count()
 
         if current_participants >= config.max_discussion_participants:

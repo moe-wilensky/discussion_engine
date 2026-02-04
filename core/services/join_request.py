@@ -53,7 +53,7 @@ class JoinRequestService:
         # Check if discussion is at cap
         config = PlatformConfig.objects.get(pk=1)
         current_participants = DiscussionParticipant.objects.filter(
-            discussion=discussion, role="active"
+            discussion=discussion, role__in=["initiator", "active"]
         ).count()
 
         if current_participants >= config.max_discussion_participants:
@@ -69,7 +69,9 @@ class JoinRequestService:
 
         # Get discussion initiator (approver)
         initiator_participant = (
-            DiscussionParticipant.objects.filter(discussion=discussion, role="active")
+            DiscussionParticipant.objects.filter(
+                discussion=discussion, role__in=["initiator", "active"]
+            )
             .order_by("joined_at")
             .first()
         )
@@ -116,7 +118,7 @@ class JoinRequestService:
         if request.approver.id != approver.id:
             # Check if approver is discussion initiator or active participant
             is_participant = DiscussionParticipant.objects.filter(
-                discussion=request.discussion, user=approver, role="active"
+                discussion=request.discussion, user=approver, role__in=["initiator", "active"]
             ).exists()
 
             if not is_participant:
@@ -127,7 +129,7 @@ class JoinRequestService:
         # Check if discussion still has space
         config = PlatformConfig.objects.get(pk=1)
         current_participants = DiscussionParticipant.objects.filter(
-            discussion=request.discussion, role="active"
+            discussion=request.discussion, role__in=["initiator", "active"]
         ).count()
 
         if current_participants >= config.max_discussion_participants:
@@ -173,7 +175,7 @@ class JoinRequestService:
         # Validate approver has authority
         if request.approver.id != approver.id:
             is_participant = DiscussionParticipant.objects.filter(
-                discussion=request.discussion, user=approver, role="active"
+                discussion=request.discussion, user=approver, role__in=["initiator", "active"]
             ).exists()
 
             if not is_participant:

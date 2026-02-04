@@ -62,13 +62,10 @@ class TestServiceEdgeCases:
         self, user_factory, discussion_factory
     ):
         """Test getting pending join requests."""
-        discussion = discussion_factory()
-        requester = user_factory()
         approver = user_factory()
-
-        DiscussionParticipant.objects.create(
-            discussion=discussion, user=approver, role="active"
-        )
+        discussion = discussion_factory(initiator=approver)
+        # Approver is the initiator with role="initiator" from factory
+        requester = user_factory()
 
         # Create pending request
         request = JoinRequest.objects.create(

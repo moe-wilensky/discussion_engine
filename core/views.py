@@ -345,6 +345,8 @@ def discussion_participate_view(request, discussion_id):
         "participant": participant,
         "previous_responses": previous_responses,
         "max_chars": discussion.max_response_length_chars,
+        "max_length": discussion.max_response_length_chars,
+        "min_length": 50,  # Default minimum length
     }
 
     return render(request, "discussions/participate.html", context)

@@ -210,8 +210,10 @@ class TestMutualRemovalService:
             target=user2,
             discussion=discussion
         )
-        
-        assert can_remove is True or can_remove is False  # Just test it doesn't crash
+
+        # Both users are active participants, so removal should be allowed
+        assert can_remove is True
+        assert reason == ""
 
     def test_mutual_removal_both_remove(self):
         """Test checking removal permissions."""
