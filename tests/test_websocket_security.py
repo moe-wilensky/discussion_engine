@@ -20,6 +20,8 @@ User = get_user_model()
 @pytest.fixture
 async def websocket_test_data(db):
     """Set up test data for WebSocket tests."""
+    import random
+
     # Create platform config
     await database_sync_to_async(PlatformConfig.objects.get_or_create)(
         pk=1,
@@ -29,28 +31,46 @@ async def websocket_test_data(db):
         },
     )
 
-    # Create test users
+    # Create test users with unique phone numbers
+    unique_id = random.randint(10000, 99999)
     user1 = await database_sync_to_async(User.objects.create_user)(
-        username="participant1", phone_number="+11234567890"
+        username=f"participant1_{unique_id}", phone_number=f"+1123456{unique_id:05d}"
     )
     user2 = await database_sync_to_async(User.objects.create_user)(
-        username="participant2", phone_number="+11234567891"
+        username=f"participant2_{unique_id}", phone_number=f"+1223456{unique_id:05d}"
     )
     user3 = await database_sync_to_async(User.objects.create_user)(
-        username="outsider", phone_number="+11234567892"
+        username=f"outsider_{unique_id}", phone_number=f"+1323456{unique_id:05d}"
     )
+
+    # Give user1 discussion invites so they can invite others
+    def _give_invites():
+        user1.discussion_invites_banked = 5
+        user1.discussion_invites_acquired = 5
+        user1.save()
+
+    await database_sync_to_async(_give_invites)()
 
     # Create a discussion with user1 as initiator
     def _create_discussion():
         discussion = DiscussionService.create_discussion(
             initiator=user1,
-            headline="Test Discussion",
-            details="Test details",
+            headline=f"Test Discussion {unique_id}",
+            details=f"Test details {unique_id}",
             mrm=30,
             rtm=2.0,
             mrl=2000,
-            initial_invites=[user2],
+            initial_invites=[],  # Don't use initial_invites since initiator can't send yet
         )
+
+        # Directly create participant for user2 for WebSocket testing
+        # This simulates a user who has accepted an invite
+        DiscussionParticipant.objects.create(
+            discussion=discussion,
+            user=user2,
+            role='active'
+        )
+
         return discussion
 
     discussion = await database_sync_to_async(_create_discussion)()
@@ -137,12 +157,17 @@ class TestWebSocketSecurity:
 
         await communicator.disconnect()
 
-    async def test_invited_participant_can_connect(self, websocket_test_data):
-        """Test that invited participants can connect to WebSocket."""
+    async def test_accepted_invite_participant_can_connect(self, websocket_test_data):
+        """Test that participants who accepted invites can connect to WebSocket.
+
+        Note: Users with pending (unaccepted) invites should NOT be able to connect.
+        Only after accepting the invite and becoming a participant can they connect.
+        """
         discussion = websocket_test_data["discussion"]
         user2 = websocket_test_data["user2"]
 
-        # Create communicator with user2 (invited participant)
+        # user2 has already accepted the invite in the fixture setup
+        # Create communicator with user2 (accepted participant)
         communicator = WebsocketCommunicator(
             DiscussionConsumer.as_asgi(),
             f"/ws/discussions/{discussion.id}/",
@@ -155,7 +180,7 @@ class TestWebSocketSecurity:
         # Attempt to connect
         connected, subprotocol = await communicator.connect()
 
-        # Should be accepted
+        # Should be accepted (invite was accepted)
         assert connected
 
         await communicator.disconnect()
@@ -165,11 +190,15 @@ class TestWebSocketSecurity:
         discussion = websocket_test_data["discussion"]
         user2 = websocket_test_data["user2"]
 
-        # Make user2 an observer
+        # Make user2 an observer (ensure participant record exists first)
         def _make_observer():
-            participant = DiscussionParticipant.objects.get(
-                discussion=discussion, user=user2
+            # Get or create participant record
+            participant, created = DiscussionParticipant.objects.get_or_create(
+                discussion=discussion,
+                user=user2,
+                defaults={'role': 'active'}
             )
+            # Change to observer
             participant.role = "temporary_observer"
             participant.observer_reason = "mrp_expired"
             participant.save()
@@ -197,7 +226,8 @@ class TestWebSocketSecurity:
     async def test_nonexistent_discussion_rejects_connection(self, websocket_test_data):
         """Test that connection to non-existent discussion is rejected."""
         user1 = websocket_test_data["user1"]
-        fake_discussion_id = "00000000-0000-0000-0000-000000000000"
+        # Use a high integer ID that doesn't exist (Discussion uses integer IDs, not UUIDs)
+        fake_discussion_id = 999999
 
         # Create communicator with valid user but fake discussion
         communicator = WebsocketCommunicator(
@@ -205,7 +235,7 @@ class TestWebSocketSecurity:
             f"/ws/discussions/{fake_discussion_id}/",
         )
         communicator.scope["url_route"] = {
-            "kwargs": {"discussion_id": fake_discussion_id}
+            "kwargs": {"discussion_id": str(fake_discussion_id)}
         }
         communicator.scope["user"] = user1
 

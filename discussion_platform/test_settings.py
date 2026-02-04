@@ -26,6 +26,10 @@ CACHES = {
     }
 }
 
+# Rate Limiting Configuration for Tests
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = "default"
+
 # Use synchronous Celery for tests (no broker needed)
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
