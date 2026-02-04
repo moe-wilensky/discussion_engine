@@ -39,7 +39,13 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
         (
             "Platform Info",
-            {"fields": ("phone_number", "is_platform_admin", "account_deletion_preference")},
+            {
+                "fields": (
+                    "phone_number",
+                    "is_platform_admin",
+                    "account_deletion_preference",
+                )
+            },
         ),
         (
             "Platform Invites",
@@ -170,7 +176,13 @@ class PlatformConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Discussion)
 class DiscussionAdmin(admin.ModelAdmin):
-    list_display = ["topic_headline", "initiator", "status", "created_at", "archived_at"]
+    list_display = [
+        "topic_headline",
+        "initiator",
+        "status",
+        "created_at",
+        "archived_at",
+    ]
     list_filter = ["status", "created_at"]
     search_fields = ["topic_headline", "topic_details", "initiator__username"]
     readonly_fields = ["created_at", "archived_at"]
@@ -195,7 +207,14 @@ class DiscussionAdmin(admin.ModelAdmin):
 
 @admin.register(DiscussionParticipant)
 class DiscussionParticipantAdmin(admin.ModelAdmin):
-    list_display = ["user", "discussion", "role", "joined_at", "observer_reason", "removal_count"]
+    list_display = [
+        "user",
+        "discussion",
+        "role",
+        "joined_at",
+        "observer_reason",
+        "removal_count",
+    ]
     list_filter = ["role", "observer_reason", "joined_at"]
     search_fields = ["user__username", "discussion__topic_headline"]
     readonly_fields = ["joined_at", "observer_since"]
@@ -239,7 +258,14 @@ class RoundAdmin(admin.ModelAdmin):
 
 @admin.register(Response)
 class ResponseAdmin(admin.ModelAdmin):
-    list_display = ["user", "round", "character_count", "edit_count", "is_locked", "created_at"]
+    list_display = [
+        "user",
+        "round",
+        "character_count",
+        "edit_count",
+        "is_locked",
+        "created_at",
+    ]
     list_filter = ["is_locked", "created_at"]
     search_fields = ["user__username", "round__discussion__topic_headline", "content"]
     readonly_fields = ["created_at", "last_edited_at", "character_count"]
@@ -248,7 +274,14 @@ class ResponseAdmin(admin.ModelAdmin):
         ("Response", {"fields": ("round", "user", "content", "character_count")}),
         (
             "Editing",
-            {"fields": ("edit_count", "characters_changed_total", "is_locked", "last_edited_at")},
+            {
+                "fields": (
+                    "edit_count",
+                    "characters_changed_total",
+                    "is_locked",
+                    "last_edited_at",
+                )
+            },
         ),
         ("Timing", {"fields": ("time_since_previous_minutes", "created_at")}),
     )
@@ -266,23 +299,49 @@ class VoteAdmin(admin.ModelAdmin):
 class RemovalVoteAdmin(admin.ModelAdmin):
     list_display = ["voter", "target", "round", "voted_at"]
     list_filter = ["voted_at"]
-    search_fields = ["voter__username", "target__username", "round__discussion__topic_headline"]
+    search_fields = [
+        "voter__username",
+        "target__username",
+        "round__discussion__topic_headline",
+    ]
     readonly_fields = ["voted_at"]
 
 
 @admin.register(ModerationAction)
 class ModerationActionAdmin(admin.ModelAdmin):
-    list_display = ["action_type", "initiator", "target", "discussion", "is_permanent", "action_at"]
+    list_display = [
+        "action_type",
+        "initiator",
+        "target",
+        "discussion",
+        "is_permanent",
+        "action_at",
+    ]
     list_filter = ["action_type", "is_permanent", "action_at"]
-    search_fields = ["initiator__username", "target__username", "discussion__topic_headline"]
+    search_fields = [
+        "initiator__username",
+        "target__username",
+        "discussion__topic_headline",
+    ]
     readonly_fields = ["action_at"]
 
 
 @admin.register(Invite)
 class InviteAdmin(admin.ModelAdmin):
-    list_display = ["inviter", "invitee", "invite_type", "discussion", "status", "sent_at"]
+    list_display = [
+        "inviter",
+        "invitee",
+        "invite_type",
+        "discussion",
+        "status",
+        "sent_at",
+    ]
     list_filter = ["invite_type", "status", "sent_at"]
-    search_fields = ["inviter__username", "invitee__username", "discussion__topic_headline"]
+    search_fields = [
+        "inviter__username",
+        "invitee__username",
+        "discussion__topic_headline",
+    ]
     readonly_fields = ["sent_at", "accepted_at", "first_participation_at"]
 
 

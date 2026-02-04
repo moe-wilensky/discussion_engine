@@ -1,0 +1,17 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<div class="warning-box">
+    <h3>⚠️ Warning: Approaching Permanent Observer Status</h3>
+    <p>You've exceeded your edit budget in the discussion "<strong>{{ topic }}</strong>".</p>
+    <p>One more violation may result in permanent observer status.</p>
+</div>
+
+<p><strong>What is the edit budget?</strong></p>
+<p>To maintain discussion quality, responses can only be edited by up to 20% of their original length. This prevents significant post-submission changes.</p>
+
+<p><strong>What should I do?</strong></p>
+<p>Please be more careful when editing your responses in the future. Take time to review before submitting.</p>
+{% endblock %}

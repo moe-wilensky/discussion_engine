@@ -1,0 +1,204 @@
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    min-width: 300px;
+    max-width: 500px;
+    padding: 16px 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-icon {
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+}
+
+/* Toast Types */
+.toast-success {
+    border-left: 4px solid #28a745;
+}
+
+.toast-success .toast-icon {
+    color: #28a745;
+}
+
+.toast-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.toast-info .toast-icon {
+    color: #17a2b8;
+}
+
+.toast-warning {
+    border-left: 4px solid #ffc107;
+    background: #fffbf0;
+}
+
+.toast-warning .toast-icon {
+    color: #f57c00;
+}
+
+.toast-error,
+.toast-critical {
+    border-left: 4px solid #dc3545;
+    background: #fff5f5;
+}
+
+.toast-error .toast-icon,
+.toast-critical .toast-icon {
+    color: #dc3545;
+}
+
+/* WebSocket Status Indicator */
+.ws-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    z-index: 9999;
+    cursor: help;
+}
+
+.ws-status.connected {
+    background: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.6);
+}
+
+.ws-status.disconnected {
+    background: #ffc107;
+    animation: pulse 2s infinite;
+}
+
+.ws-status.error {
+    background: #dc3545;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* MRP Timer Styles */
+.timer-value {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2em;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #e9ecef;
+    color: #495057;
+    transition: all 0.3s ease;
+}
+
+.timer-value.warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.timer-value.critical {
+    background: #f8d7da;
+    color: #721c24;
+    animation: pulse-timer 1s infinite;
+}
+
+@keyframes pulse-timer {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Notification Badge */
+#notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    font-weight: bold;
+}
+
+/* Character Counter */
+.char-counter {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-top: 8px;
+}
+
+#char-count {
+    font-weight: bold;
+}
+
+#char-status {
+    font-size: 0.85em;
+}
+
+#char-error {
+    font-size: 0.9em;
+    margin-top: 4px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .toast {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        max-width: none;
+    }
+    
+    .ws-status {
+        top: 5px;
+        right: 5px;
+    }
+}

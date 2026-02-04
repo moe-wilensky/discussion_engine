@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>A new round has started in the discussion "<strong>{{ topic }}</strong>".</p>
+
+<div class="info-box">
+    <h3>Round {{ round_number }}</h3>
+    <p>Previous rounds have concluded and a new discussion round has begun.</p>
+    <p>You can now submit a new response addressing the points raised in previous rounds.</p>
+</div>
+
+<p>This is your opportunity to build on the conversation!</p>
+{% endblock %}

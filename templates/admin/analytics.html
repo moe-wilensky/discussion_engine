@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Platform Analytics{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'admin-dashboard' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <h1 class="text-3xl font-bold mb-8">Platform Analytics</h1>
+    
+    <!-- User Metrics -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">User Metrics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div>
+                <div class="text-sm text-gray-600">Total Users</div>
+                <div class="text-2xl font-bold">{{ analytics.users.total }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Active Users (7d)</div>
+                <div class="text-2xl font-bold text-green-600">{{ analytics.users.active_7d }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Growth Rate</div>
+                <div class="text-2xl font-bold text-blue-600">+{{ analytics.users.growth_rate }}%</div>
+            </div>
+        </div>
+        <canvas id="userGrowthChart" height="80"></canvas>
+    </div>
+    
+    <!-- Discussion Metrics -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Discussion Metrics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div>
+                <div class="text-sm text-gray-600">Total Discussions</div>
+                <div class="text-2xl font-bold">{{ analytics.discussions.total }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Active</div>
+                <div class="text-2xl font-bold text-green-600">{{ analytics.discussions.active }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Archived</div>
+                <div class="text-2xl font-bold text-gray-600">{{ analytics.discussions.archived }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Completion Rate</div>
+                <div class="text-2xl font-bold text-blue-600">{{ analytics.discussions.completion_rate }}%</div>
+            </div>
+        </div>
+        <canvas id="discussionStatusChart" height="80"></canvas>
+    </div>
+    
+    <!-- Engagement Metrics -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Engagement Metrics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <div class="text-sm text-gray-600">Total Responses</div>
+                <div class="text-2xl font-bold">{{ analytics.engagement.total_responses }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Avg Responses/Discussion</div>
+                <div class="text-2xl font-bold">{{ analytics.engagement.avg_responses }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Voting Participation</div>
+                <div class="text-2xl font-bold text-green-600">{{ analytics.engagement.voting_participation }}%</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Moderation Metrics -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Moderation Metrics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div>
+                <div class="text-sm text-gray-600">Total Actions</div>
+                <div class="text-2xl font-bold">{{ analytics.moderation.total_actions }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Mutual Removals</div>
+                <div class="text-2xl font-bold text-yellow-600">{{ analytics.moderation.mutual_removals }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Vote Removals</div>
+                <div class="text-2xl font-bold text-orange-600">{{ analytics.moderation.vote_removals }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Flags Resolved</div>
+                <div class="text-2xl font-bold text-green-600">{{ analytics.moderation.flags_resolved }}</div>
+            </div>
+        </div>
+        <canvas id="moderationChart" height="80"></canvas>
+    </div>
+    
+    <!-- Abuse Detection Stats -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Abuse Detection Statistics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <div class="text-sm text-gray-600">Patterns Detected</div>
+                <div class="text-2xl font-bold text-red-600">{{ analytics.abuse.patterns_detected }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Auto-Moderated</div>
+                <div class="text-2xl font-bold text-orange-600">{{ analytics.abuse.auto_moderated }}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">False Positive Rate</div>
+                <div class="text-2xl font-bold text-green-600">{{ analytics.abuse.false_positive_rate }}%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// User Growth Chart
+const userCtx = document.getElementById('userGrowthChart').getContext('2d');
+new Chart(userCtx, {
+    type: 'line',
+    data: {
+        labels: {{ analytics.charts.user_growth.labels|safe }},
+        datasets: [{
+            label: 'New Users',
+            data: {{ analytics.charts.user_growth.data|safe }},
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+
+// Discussion Status Chart
+const discussionCtx = document.getElementById('discussionStatusChart').getContext('2d');
+new Chart(discussionCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ analytics.charts.discussion_status.labels|safe }},
+        datasets: [{
+            label: 'Discussions',
+            data: {{ analytics.charts.discussion_status.data|safe }},
+            backgroundColor: ['rgb(34, 197, 94)', 'rgb(59, 130, 246)', 'rgb(156, 163, 175)']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+
+// Moderation Chart
+const moderationCtx = document.getElementById('moderationChart').getContext('2d');
+new Chart(moderationCtx, {
+    type: 'line',
+    data: {
+        labels: {{ analytics.charts.moderation_timeline.labels|safe }},
+        datasets: [{
+            label: 'Moderation Actions',
+            data: {{ analytics.charts.moderation_timeline.data|safe }},
+            borderColor: 'rgb(251, 146, 60)',
+            backgroundColor: 'rgba(251, 146, 60, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+</script>
+{% endblock %}

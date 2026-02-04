@@ -1,0 +1,32 @@
+<div class="flex items-start space-x-3 {% if not notification.read_at %}bg-blue-50{% endif %} p-3 rounded-lg">
+    <div class="flex-shrink-0">
+        {% if notification.is_critical %}
+        <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+        </svg>
+        {% else %}
+        <svg class="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+        </svg>
+        {% endif %}
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm {% if not notification.read_at %}font-medium{% endif %} text-gray-900">
+            {{ notification.title }}
+        </p>
+        <p class="text-sm text-gray-600 mt-1">
+            {{ notification.message }}
+        </p>
+        <p class="text-xs text-gray-400 mt-1">
+            {{ notification.created_at|timesince }} ago
+        </p>
+    </div>
+    {% if not notification.read_at %}
+    <button hx-post="{% url 'mark-notification-read' notification.id %}" 
+            hx-target="closest .flex"
+            hx-swap="outerHTML"
+            class="text-xs text-indigo-600 hover:text-indigo-500">
+        Mark read
+    </button>
+    {% endif %}
+</div>

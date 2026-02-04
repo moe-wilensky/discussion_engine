@@ -1,0 +1,83 @@
+<div class="bg-white border border-gray-200 rounded-lg p-4">
+    <label class="block text-sm font-medium text-gray-700 mb-2">
+        Select text to quote (optional)
+    </label>
+    
+    <select 
+        name="quoted_response_id" 
+        id="quote-selector" 
+        class="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+        onchange="showQuotePreview()"
+    >
+        <option value="">-- Select a response to quote --</option>
+        {% for response in responses %}
+        <option value="{{ response.id }}" data-content="{{ response.content|escapejs }}">
+            Response #{{ response.response_number }} by {{ response.user.username }} ({{ response.character_count }} chars)
+        </option>
+        {% endfor %}
+    </select>
+    
+    <div id="quote-preview" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+            Select specific text to quote (or leave blank to quote entire response)
+        </label>
+        <textarea 
+            name="quote_text" 
+            id="quote-text-area"
+            rows="3" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            placeholder="Leave blank to quote entire response, or paste/type specific text here..."
+        ></textarea>
+        <p class="text-xs text-gray-500 mt-1">
+            Tip: Copy and paste the specific portion you want to reference
+        </p>
+    </div>
+</div>
+
+<script>
+function showQuotePreview() {
+    const selector = document.getElementById('quote-selector');
+    const preview = document.getElementById('quote-preview');
+    const textArea = document.getElementById('quote-text-area');
+    
+    if (selector.value) {
+        preview.classList.remove('hidden');
+        const selectedOption = selector.options[selector.selectedIndex];
+        const fullContent = selectedOption.getAttribute('data-content');
+        textArea.placeholder = `Full response: "${fullContent.substring(0, 100)}${fullContent.length > 100 ? '...' : ''}"`;
+    } else {
+        preview.classList.add('hidden');
+        textArea.value = '';
+    }
+}
+
+// Pre-select quote from localStorage (if navigated from response card)
+window.addEventListener('DOMContentLoaded', function() {
+    const storedQuote = localStorage.getItem('selectedQuote');
+    if (storedQuote) {
+        try {
+            const quote = JSON.parse(storedQuote);
+            const selector = document.getElementById('quote-selector');
+            const textArea = document.getElementById('quote-text-area');
+            
+            selector.value = quote.id;
+            showQuotePreview();
+            
+            if (quote.text) {
+                textArea.value = quote.text;
+            }
+            
+            localStorage.removeItem('selectedQuote');
+            
+            // Scroll to quote selector and highlight it
+            selector.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            selector.classList.add('ring-2', 'ring-blue-500');
+            setTimeout(() => {
+                selector.classList.remove('ring-2', 'ring-blue-500');
+            }, 2000);
+        } catch (e) {
+            console.error('Error loading quote:', e);
+        }
+    }
+});
+</script>

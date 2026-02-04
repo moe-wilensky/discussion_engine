@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Login - Discussion Engine{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <h2 class="text-center text-3xl font-bold tracking-tight text-gray-900 mb-8">
+            Sign in to your account
+        </h2>
+        
+        <form method="post" 
+              hx-post="{% url 'login' %}" 
+              hx-target="#form-container" 
+              hx-swap="outerHTML"
+              id="form-container"
+              class="space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">
+                    Username or Email
+                </label>
+                <input type="text" 
+                       name="username" 
+                       id="username" 
+                       required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Username or email"
+                       autofocus>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">
+                    Password
+                </label>
+                <input type="password" 
+                       name="password" 
+                       id="password" 
+                       required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Password">
+            </div>
+
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <input id="remember_me" 
+                           name="remember_me" 
+                           type="checkbox" 
+                           class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="remember_me" class="ml-2 block text-sm text-gray-900">
+                        Remember me
+                    </label>
+                </div>
+
+                <div class="text-sm">
+                    <a href="{% url 'password-reset' %}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                        Forgot password?
+                    </a>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                        class="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Sign in
+                </button>
+            </div>
+        </form>
+
+        <div class="mt-6">
+            <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-300"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="bg-white px-2 text-gray-500">
+                        Don't have an account?
+                    </span>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <a href="{% url 'register' %}" 
+                   class="flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                    Create an account
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

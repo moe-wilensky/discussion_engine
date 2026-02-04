@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>{{ requester_name }} has requested to join the discussion "<strong>{{ topic }}</strong>".</p>
+
+<div class="info-box">
+    <h3>Join Request</h3>
+    <p><strong>Requestor:</strong> {{ requester_name }}</p>
+    <p><strong>Message:</strong> {{ request_message }}</p>
+</div>
+
+<p>As a participant, you can view this request and vote on whether to accept it.</p>
+{% endblock %}

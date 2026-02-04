@@ -1,0 +1,92 @@
+<div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg" id="mrp-timer-container">
+    <div class="flex items-center space-x-3">
+        <div class="flex-shrink-0">
+            <svg class="h-6 w-6 {% if time_remaining_pct <= 25 %}text-red-500{% elif time_remaining_pct <= 50 %}text-yellow-500{% else %}text-green-500{% endif %}" 
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <div>
+            <p class="text-sm font-medium text-gray-900">
+                Your response window
+            </p>
+            <p class="text-xs text-gray-500">
+                <span id="mrp-timer" class="timer-value font-mono">
+                    {{ time_remaining }}
+                </span> remaining
+            </p>
+        </div>
+    </div>
+    <div class="w-24 bg-gray-200 rounded-full h-2">
+        <div id="mrp-timer-bar" 
+             class="h-2 rounded-full transition-all duration-1000 {% if time_remaining_pct <= 25 %}bg-red-500{% elif time_remaining_pct <= 50 %}bg-yellow-500{% else %}bg-green-500{% endif %}"
+             style="width: {{ time_remaining_pct }}%"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Initialize global timer state for WebSocket synchronization
+    window.mrpTimerState = {
+        serverTimeRemaining: {{ time_remaining_seconds }},
+        lastUpdate: Date.now(),
+        totalDuration: {{ total_mrp_duration }},
+        mrpEndTime: new Date("{{ mrp_end_time|date:'c' }}").getTime()
+    };
+    
+    function updateLocalTimer() {
+        const state = window.mrpTimerState;
+        const elapsed = (Date.now() - state.lastUpdate) / 1000;
+        const remaining = Math.max(0, state.serverTimeRemaining - elapsed);
+        
+        if (remaining <= 0) {
+            document.getElementById('mrp-timer').textContent = 'EXPIRED';
+            document.getElementById('mrp-timer').className = 'timer-value critical font-mono';
+            document.getElementById('mrp-timer-bar').style.width = '0%';
+            return;
+        }
+        
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = Math.floor(remaining % 60);
+        
+        // Format timer display
+        let display = '';
+        if (hours > 0) {
+            display = `${hours}h ${minutes}m ${seconds}s`;
+        } else if (minutes > 0) {
+            display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            display = `${seconds}s`;
+        }
+        
+        const timerElement = document.getElementById('mrp-timer');
+        timerElement.textContent = display;
+        
+        // Update progress bar
+        const pct = (remaining / state.totalDuration) * 100;
+        const bar = document.getElementById('mrp-timer-bar');
+        bar.style.width = pct + '%';
+        
+        // Update color based on percentage
+        if (pct <= 25) {
+            bar.className = 'h-2 rounded-full transition-all duration-1000 bg-red-500';
+            timerElement.className = 'timer-value critical font-mono';
+        } else if (pct <= 50) {
+            bar.className = 'h-2 rounded-full transition-all duration-1000 bg-yellow-500';
+            timerElement.className = 'timer-value warning font-mono';
+        } else {
+            bar.className = 'h-2 rounded-full transition-all duration-1000 bg-green-500';
+            timerElement.className = 'timer-value font-mono';
+        }
+        
+        // Continue updating
+        if (remaining > 0) {
+            requestAnimationFrame(updateLocalTimer);
+        }
+    }
+    
+    // Start local countdown as fallback (WebSocket will sync server time)
+    updateLocalTimer();
+})();
+</script>

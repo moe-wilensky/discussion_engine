@@ -1,0 +1,345 @@
+/**
+ * Main stylesheet for Discussion Engine Platform
+ * Extends TailwindCSS with custom components and utilities
+ */
+
+/* Base styles */
+:root {
+    --color-primary: #4F46E5; /* Indigo-600 */
+    --color-primary-hover: #4338CA; /* Indigo-700 */
+    --color-danger: #DC2626; /* Red-600 */
+    --color-success: #059669; /* Emerald-600 */
+    --color-warning: #D97706; /* Amber-600 */
+    --color-info: #0284C7; /* Sky-600 */
+}
+
+/* Custom button styles */
+.btn {
+    @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+}
+
+.btn-primary {
+    @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+}
+
+.btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+}
+
+.btn-success {
+    @apply bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2;
+}
+
+/* Form styles */
+.form-input {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm;
+}
+
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.form-error {
+    @apply mt-1 text-sm text-red-600;
+}
+
+.form-help {
+    @apply mt-1 text-sm text-gray-500;
+}
+
+/* Card styles */
+.card {
+    @apply bg-white rounded-lg shadow-md p-6;
+}
+
+.card-header {
+    @apply text-lg font-semibold text-gray-900 mb-4;
+}
+
+/* Discussion card */
+.discussion-card {
+    @apply bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-200 p-6 border border-gray-200;
+}
+
+.discussion-card:hover {
+    @apply border-indigo-300;
+}
+
+/* Response card */
+.response-card {
+    @apply bg-white rounded-lg border border-gray-200 p-4 mb-4;
+}
+
+.response-card.highlighted {
+    @apply border-indigo-400 bg-indigo-50;
+}
+
+/* Quote block */
+.quote-block {
+    @apply border-l-4 border-gray-300 pl-4 py-2 my-2 bg-gray-50 italic text-gray-700;
+}
+
+/* Badge styles */
+.badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+    @apply bg-indigo-100 text-indigo-800;
+}
+
+.badge-success {
+    @apply bg-emerald-100 text-emerald-800;
+}
+
+.badge-warning {
+    @apply bg-amber-100 text-amber-800;
+}
+
+.badge-danger {
+    @apply bg-red-100 text-red-800;
+}
+
+.badge-info {
+    @apply bg-sky-100 text-sky-800;
+}
+
+.badge-gray {
+    @apply bg-gray-100 text-gray-800;
+}
+
+/* Timer display */
+.timer {
+    @apply text-sm font-mono bg-gray-100 px-3 py-1 rounded border border-gray-300;
+}
+
+.timer.urgent {
+    @apply bg-red-100 border-red-300 text-red-800;
+}
+
+.timer.warning {
+    @apply bg-amber-100 border-amber-300 text-amber-800;
+}
+
+/* Character counter */
+.character-counter {
+    @apply text-sm text-gray-600 text-right mt-1;
+}
+
+.character-counter.warning {
+    @apply text-amber-600;
+}
+
+.character-counter.danger {
+    @apply text-red-600;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+    @apply fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-40;
+}
+
+/* Modal panel */
+.modal-panel {
+    @apply relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg z-50;
+}
+
+/* Loading spinner */
+.spinner {
+    @apply inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite];
+}
+
+/* Progress bar */
+.progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2.5;
+}
+
+.progress-bar-fill {
+    @apply bg-indigo-600 h-2.5 rounded-full transition-all duration-300;
+}
+
+/* Notification panel */
+.notification-panel {
+    @apply absolute right-0 z-10 mt-2 w-96 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none;
+}
+
+.notification-item {
+    @apply block px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 border-b border-gray-200 transition-colors;
+}
+
+.notification-item:last-child {
+    @apply border-b-0;
+}
+
+.notification-item.unread {
+    @apply bg-indigo-50;
+}
+
+/* Status indicators */
+.status-dot {
+    @apply inline-block h-2 w-2 rounded-full;
+}
+
+.status-dot.active {
+    @apply bg-emerald-500;
+}
+
+.status-dot.observer {
+    @apply bg-amber-500;
+}
+
+.status-dot.removed {
+    @apply bg-red-500;
+}
+
+.status-dot.pending {
+    @apply bg-gray-500;
+}
+
+/* Tabs */
+.tab-list {
+    @apply flex border-b border-gray-200;
+}
+
+.tab {
+    @apply px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent transition-colors;
+}
+
+.tab.active {
+    @apply text-indigo-600 border-indigo-600;
+}
+
+/* Table styles */
+.table {
+    @apply min-w-full divide-y divide-gray-200;
+}
+
+.table thead {
+    @apply bg-gray-50;
+}
+
+.table th {
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.table td {
+    @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+}
+
+.table tbody tr:hover {
+    @apply bg-gray-50;
+}
+
+/* Alert box */
+.alert {
+    @apply p-4 rounded-md mb-4;
+}
+
+.alert-success {
+    @apply bg-emerald-50 text-emerald-800 border border-emerald-200;
+}
+
+.alert-error {
+    @apply bg-red-50 text-red-800 border border-red-200;
+}
+
+.alert-warning {
+    @apply bg-amber-50 text-amber-800 border border-amber-200;
+}
+
+.alert-info {
+    @apply bg-sky-50 text-sky-800 border border-sky-200;
+}
+
+/* Empty state */
+.empty-state {
+    @apply text-center py-12;
+}
+
+.empty-state-icon {
+    @apply mx-auto h-12 w-12 text-gray-400;
+}
+
+.empty-state-title {
+    @apply mt-2 text-sm font-medium text-gray-900;
+}
+
+.empty-state-description {
+    @apply mt-1 text-sm text-gray-500;
+}
+
+/* Skeleton loader */
+.skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+}
+
+.skeleton-text {
+    @apply h-4 bg-gray-200 rounded w-full;
+}
+
+.skeleton-avatar {
+    @apply h-12 w-12 bg-gray-200 rounded-full;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+    .card {
+        @apply p-4;
+    }
+    
+    .discussion-card {
+        @apply p-4;
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+
+/* Accessibility */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+    @apply outline-2 outline-offset-2 outline-indigo-600;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+}

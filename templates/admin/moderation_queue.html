@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Moderation Queue{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'admin-dashboard' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <h1 class="text-3xl font-bold mb-6">Moderation Queue</h1>
+    
+    <!-- Filter Tabs -->
+    <div class="mb-6 flex gap-2">
+        <button class="btn btn-sm" onclick="filterQueue('all')">All ({{ queue_counts.all }})</button>
+        <button class="btn btn-sm" onclick="filterQueue('spam')">Spam ({{ queue_counts.spam }})</button>
+        <button class="btn btn-sm" onclick="filterQueue('multi_account')">Multi-Account ({{ queue_counts.multi_account }})</button>
+        <button class="btn btn-sm" onclick="filterQueue('high_risk')">High Risk ({{ queue_counts.high_risk }})</button>
+    </div>
+    
+    <!-- Flagged Users List -->
+    <div class="space-y-4" id="queue-list">
+        {% for item in flagged_users %}
+        <div class="bg-white shadow rounded-lg p-6 queue-item" data-category="{{ item.category }}">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h3 class="text-lg font-semibold">{{ item.user.username }}</h3>
+                        <span class="px-2 py-1 rounded text-xs font-medium 
+                            {% if item.risk_level == 'high' %}bg-red-100 text-red-800
+                            {% elif item.risk_level == 'medium' %}bg-orange-100 text-orange-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ item.risk_level|upper }} RISK
+                        </span>
+                        {% if item.user.is_banned %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-800 text-white">
+                            BANNED
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        Phone: {{ item.user.phone_number }} • 
+                        Joined: {{ item.user.created_at|date:"M d, Y" }}
+                    </div>
+                </div>
+                
+                <div class="text-right">
+                    <div class="text-2xl font-bold text-red-600">{{ item.risk_score }}%</div>
+                    <div class="text-xs text-gray-500">Risk Score</div>
+                </div>
+            </div>
+            
+            <!-- Detected Patterns -->
+            <div class="mb-4">
+                <div class="text-sm font-medium mb-2">Detected Patterns:</div>
+                <div class="flex flex-wrap gap-2">
+                    {% for flag_type, flag_data in item.flags.items %}
+                    <span class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs">
+                        {{ flag_type }}: {{ flag_data.count }} instances ({{ flag_data.confidence }}% confidence)
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- User Analytics -->
+            <div class="grid grid-cols-4 gap-4 text-sm mb-4 py-3 bg-gray-50 rounded px-4">
+                <div>
+                    <div class="text-gray-600">Discussions</div>
+                    <div class="font-semibold">{{ item.stats.discussions }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-600">Responses</div>
+                    <div class="font-semibold">{{ item.stats.responses }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-600">Removals</div>
+                    <div class="font-semibold text-red-600">{{ item.stats.removals }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-600">Reports</div>
+                    <div class="font-semibold text-orange-600">{{ item.stats.reports }}</div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex gap-3">
+                <button 
+                    onclick="viewUserDetails({{ item.user.id }})" 
+                    class="btn btn-outline btn-sm"
+                >
+                    View Details
+                </button>
+                
+                {% if not item.user.is_banned %}
+                <button 
+                    onclick="banUser({{ item.user.id }}, '{{ item.user.username }}')" 
+                    class="btn btn-danger btn-sm"
+                >
+                    Ban User
+                </button>
+                {% else %}
+                <button 
+                    onclick="unbanUser({{ item.user.id }}, '{{ item.user.username }}')" 
+                    class="btn btn-secondary btn-sm"
+                >
+                    Unban User
+                </button>
+                {% endif %}
+                
+                <button 
+                    onclick="verifyPhone({{ item.user.id }})" 
+                    class="btn btn-outline btn-sm"
+                >
+                    Force Phone Verify
+                </button>
+                
+                <button 
+                    onclick="resolveFlag({{ item.id }})" 
+                    class="btn btn-outline btn-sm"
+                >
+                    Resolve Flag
+                </button>
+            </div>
+        </div>
+        {% empty %}
+        <div class="bg-white shadow rounded-lg p-12 text-center">
+            <p class="text-gray-500 text-lg">No flagged users in queue.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- User Details Modal -->
+<div id="user-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6" id="modal-content">
+            <!-- Content loaded dynamically -->
+        </div>
+    </div>
+</div>
+
+<script>
+function filterQueue(category) {
+    const items = document.querySelectorAll('.queue-item');
+    items.forEach(item => {
+        if (category === 'all' || item.dataset.category === category) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function viewUserDetails(userId) {
+    // Load user details via AJAX
+    fetch(`/api/admin/user/${userId}/analytics/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modal-content').innerHTML = renderUserDetails(data);
+            document.getElementById('user-modal').classList.remove('hidden');
+        });
+}
+
+function renderUserDetails(data) {
+    // Render detailed user analytics
+    return `
+        <h2 class="text-xl font-bold mb-4">User Analytics: ${data.username}</h2>
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+                <div class="text-sm text-gray-600">Total Activity</div>
+                <div class="text-2xl font-bold">${data.total_activity}</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Engagement Score</div>
+                <div class="text-2xl font-bold text-green-600">${data.engagement_score}%</div>
+            </div>
+            <div>
+                <div class="text-sm text-gray-600">Violations</div>
+                <div class="text-2xl font-bold text-red-600">${data.violations}</div>
+            </div>
+        </div>
+        <button onclick="closeModal()" class="btn btn-primary">Close</button>
+    `;
+}
+
+function closeModal() {
+    document.getElementById('user-modal').classList.add('hidden');
+}
+
+function banUser(userId, username) {
+    if (confirm(`Ban user ${username}? They will be logged out and cannot access the platform.`)) {
+        fetch(`/api/admin/users/${userId}/ban/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(() => location.reload());
+    }
+}
+
+function unbanUser(userId, username) {
+    if (confirm(`Unban user ${username}?`)) {
+        fetch(`/api/admin/users/${userId}/unban/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(() => location.reload());
+    }
+}
+
+function verifyPhone(userId) {
+    if (confirm('Force phone verification for this user?')) {
+        fetch(`/api/admin/users/${userId}/verify-phone/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(() => location.reload());
+    }
+}
+
+function resolveFlag(flagId) {
+    if (confirm('Mark this flag as resolved?')) {
+        fetch(`/api/admin/flags/${flagId}/resolve/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(() => location.reload());
+    }
+}
+</script>
+{% endblock %}

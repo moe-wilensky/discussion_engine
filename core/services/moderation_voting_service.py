@@ -10,8 +10,12 @@ from django.utils import timezone
 from typing import Dict, List
 
 from core.models import (
-    Round, RemovalVote, User, DiscussionParticipant,
-    PlatformConfig, ModerationAction
+    Round,
+    RemovalVote,
+    User,
+    DiscussionParticipant,
+    PlatformConfig,
+    ModerationAction,
 )
 
 
@@ -22,19 +26,16 @@ class ModerationVotingService:
     def get_eligible_targets(round: Round, voter: User = None) -> QuerySet[User]:
         """
         Get all active participants in round (eligible removal targets).
-        
+
         Excludes the voter themselves when specified.
         """
         # Get active participants in this discussion
         active_participants = DiscussionParticipant.objects.filter(
-            discussion=round.discussion,
-            role__in=['initiator', 'active']
+            discussion=round.discussion, role__in=["initiator", "active"]
         )
 
         # Get users who responded in this round
-        responders = User.objects.filter(
-            responses__round=round
-        ).distinct()
+        responders = User.objects.filter(responses__round=round).distinct()
 
         if voter:
             # Exclude the voter themselves
@@ -44,13 +45,11 @@ class ModerationVotingService:
 
     @staticmethod
     def cast_removal_vote(
-        voter: User,
-        round: Round,
-        targets: List[User]
+        voter: User, round: Round, targets: List[User]
     ) -> List[RemovalVote]:
         """
         Cast vote to remove one or more users.
-        
+
         - Validate voter is eligible (responded in round)
         - Can vote for multiple targets
         - Create RemovalVote records
@@ -60,7 +59,7 @@ class ModerationVotingService:
             raise ValueError(f"User {voter.username} did not participate in this round")
 
         votes_cast = []
-        
+
         with transaction.atomic():
             for target in targets:
                 # Don't allow voting for yourself
@@ -76,7 +75,7 @@ class ModerationVotingService:
                     round=round,
                     voter=voter,
                     target=target,
-                    defaults={'voted_at': timezone.now()}
+                    defaults={"voted_at": timezone.now()},
                 )
                 votes_cast.append(vote)
 
@@ -86,7 +85,7 @@ class ModerationVotingService:
     def count_removal_votes(round: Round, target: User) -> Dict:
         """
         Count votes against a target.
-        
+
         Returns: {
             'votes_for_removal': count,
             'total_eligible_voters': count,
@@ -96,19 +95,18 @@ class ModerationVotingService:
         }
         """
         # Get all participants who responded in this round (eligible voters)
-        eligible_voters = User.objects.filter(
-            responses__round=round
-        ).distinct()
+        eligible_voters = User.objects.filter(responses__round=round).distinct()
         total_eligible = eligible_voters.count()
 
         # Count votes against this target
         votes_for_removal = RemovalVote.objects.filter(
-            round=round,
-            target=target
+            round=round, target=target
         ).count()
 
         # Calculate percentage
-        percentage = (votes_for_removal / total_eligible * 100) if total_eligible > 0 else 0
+        percentage = (
+            (votes_for_removal / total_eligible * 100) if total_eligible > 0 else 0
+        )
 
         # Get threshold from config
         config = PlatformConfig.load()
@@ -117,18 +115,18 @@ class ModerationVotingService:
         will_be_removed = percentage >= threshold
 
         return {
-            'votes_for_removal': votes_for_removal,
-            'total_eligible_voters': total_eligible,
-            'percentage': percentage,
-            'threshold': threshold,
-            'will_be_removed': will_be_removed,
+            "votes_for_removal": votes_for_removal,
+            "total_eligible_voters": total_eligible,
+            "percentage": percentage,
+            "threshold": threshold,
+            "will_be_removed": will_be_removed,
         }
 
     @staticmethod
     def resolve_removal_votes(round: Round, config: PlatformConfig) -> List[User]:
         """
         Resolve removal votes after voting window closes.
-        
+
         - For each active participant
         - Count votes against them
         - If votes >= threshold: permanent observer
@@ -140,28 +138,25 @@ class ModerationVotingService:
         removed_users = []
 
         # Get all users who received removal votes
-        targets = User.objects.filter(
-            removal_votes_received__round=round
-        ).distinct()
+        targets = User.objects.filter(removal_votes_received__round=round).distinct()
 
         with transaction.atomic():
             for target in targets:
                 vote_info = ModerationVotingService.count_removal_votes(round, target)
 
-                if vote_info['will_be_removed']:
+                if vote_info["will_be_removed"]:
                     # Get participant record
                     try:
                         participant = DiscussionParticipant.objects.get(
-                            discussion=round.discussion,
-                            user=target
+                            discussion=round.discussion, user=target
                         )
                     except DiscussionParticipant.DoesNotExist:
                         continue
 
                     # Update to permanent observer
-                    participant.role = 'permanent_observer'
+                    participant.role = "permanent_observer"
                     participant.observer_since = timezone.now()
-                    participant.observer_reason = 'vote_based_removal'
+                    participant.observer_reason = "vote_based_removal"
                     participant.save()
 
                     # Reset platform invites
@@ -172,19 +167,18 @@ class ModerationVotingService:
                     # Log moderation action
                     # Use the user with most votes as symbolic "initiator"
                     voters = RemovalVote.objects.filter(
-                        round=round,
-                        target=target
-                    ).values_list('voter', flat=True)
-                    
+                        round=round, target=target
+                    ).values_list("voter", flat=True)
+
                     if voters:
                         symbolic_initiator = User.objects.get(id=voters[0])
                         ModerationAction.objects.create(
                             discussion=round.discussion,
-                            action_type='vote_based_removal',
+                            action_type="vote_based_removal",
                             initiator=symbolic_initiator,
                             target=target,
                             round_occurred=round,
-                            is_permanent=True
+                            is_permanent=True,
                         )
 
                     removed_users.append(target)

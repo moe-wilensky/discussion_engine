@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>A voting period has begun in the discussion "<strong>{{ topic }}</strong>".</p>
+
+<div class="info-box">
+    <h3>Voting Details</h3>
+    <p><strong>Question:</strong> {{ vote_question }}</p>
+    <p><strong>Deadline:</strong> {{ voting_deadline }}</p>
+</div>
+
+<p>Your vote is important. Please take a moment to review the discussion and cast your vote.</p>
+{% endblock %}

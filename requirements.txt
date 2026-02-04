@@ -1,21 +1,54 @@
-Django>=6.0
+# Core Django
+Django>=5.1,<6.0
 djangorestframework>=3.16
 psycopg2-binary>=2.9
 python-decouple>=3.8
+
+# Testing
 pytest-django>=4.11
 pytest-cov>=7.0
+pytest-xdist>=3.5
 factory-boy>=3.3
 faker>=40.0
+pytest-playwright>=0.4.3
+playwright>=1.40
+pytest-asyncio>=0.23
+
+# Code Quality
 black>=26.0
 flake8>=7.3
+bandit>=1.7
+
+# Phone number handling
 django-phonenumber-field>=8.0
 phonenumbers>=8.13
+
+# Authentication
 djangorestframework-simplejwt>=5.3
+
+# API Documentation
 drf-spectacular>=0.27
+
+# Task Queue
 celery>=5.4
+django-celery-beat>=2.5
+
+# Cache & Channels
 redis>=5.0
-twilio>=9.0
 channels>=4.0
 channels-redis>=4.0
 daphne>=4.0
+
+# SMS
+twilio>=9.0
+
+# Firebase Cloud Messaging
+firebase-admin>=6.0
+
+# Production Server
+gunicorn>=21.2
+
+# WSGI/ASGI
+whitenoise>=6.6
+
 

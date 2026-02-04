@@ -64,3 +64,9 @@ celerybeat.pid
 # IPython
 profile_default/
 ipython_config.py
+
+# other
+_archive/
+repomix-output.json
+compress-repomix-output.json
+*.md

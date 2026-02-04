@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Notifications</h1>
+        <div class="flex gap-2">
+            {% if unread_count > 0 %}
+            <form method="post" action="{% url 'mark-all-read' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline">
+                    Mark All Read
+                </button>
+            </form>
+            {% endif %}
+            <a href="{% url 'notification-preferences' %}" class="btn btn-sm btn-outline">
+                Preferences
+            </a>
+        </div>
+    </div>
+    
+    <!-- Unread Count -->
+    {% if unread_count > 0 %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <p class="text-blue-800">
+            You have <strong>{{ unread_count }}</strong> unread notification{{ unread_count|pluralize }}.
+        </p>
+    </div>
+    {% endif %}
+    
+    <!-- Notification List -->
+    <div class="bg-white shadow rounded-lg divide-y divide-gray-200">
+        {% for notification in notifications %}
+        <div class="p-4 {% if not notification.read_at %}bg-blue-50{% endif %} hover:bg-gray-50 transition-colors">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        {% if notification.is_critical %}
+                        <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        {% endif %}
+                        <span class="font-medium text-gray-900">{{ notification.title }}</span>
+                        {% if not notification.read_at %}
+                        <span class="px-2 py-1 text-xs bg-blue-600 text-white rounded-full">New</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-gray-700 mb-2">{{ notification.message }}</p>
+                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                        <span>{{ notification.created_at|timesince }} ago</span>
+                        {% if notification.discussion %}
+                        <a href="{% url 'discussion-detail' notification.discussion.id %}" class="text-blue-600 hover:text-blue-800">
+                            View Discussion →
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="ml-4 flex-shrink-0">
+                    {% if not notification.read_at %}
+                    <form method="post" action="{% url 'mark-notification-read' notification.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="text-sm text-blue-600 hover:text-blue-800">
+                            Mark Read
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-12 text-center text-gray-500">
+            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+            </svg>
+            <p class="text-lg">No notifications yet.</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if notifications.has_other_pages %}
+    <div class="mt-6 flex justify-center">
+        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            {% if notifications.has_previous %}
+            <a href="?page={{ notifications.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+            
+            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                Page {{ notifications.number }} of {{ notifications.paginator.num_pages }}
+            </span>
+            
+            {% if notifications.has_next %}
+            <a href="?page={{ notifications.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// WebSocket for real-time notifications
+const ws = new WebSocket('ws://{{ request.get_host }}/ws/notifications/');
+
+ws.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    
+    if (data.type === 'new_notification') {
+        // Reload page or dynamically add notification
+        location.reload();
+    }
+};
+</script>
+{% endblock %}

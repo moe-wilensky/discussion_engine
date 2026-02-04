@@ -182,7 +182,9 @@ class TestDiscussionModel:
         # Add participants up to cap
         for i in range(config.max_discussion_participants - 1):
             user = user_factory()
-            DiscussionParticipant.objects.create(discussion=discussion, user=user, role="active")
+            DiscussionParticipant.objects.create(
+                discussion=discussion, user=user, role="active"
+            )
 
         assert discussion.is_at_participant_cap()
 
@@ -193,8 +195,12 @@ class TestDiscussionModel:
         # Add active participants
         active1 = user_factory()
         active2 = user_factory()
-        DiscussionParticipant.objects.create(discussion=discussion, user=active1, role="active")
-        DiscussionParticipant.objects.create(discussion=discussion, user=active2, role="active")
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=active1, role="active"
+        )
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=active2, role="active"
+        )
 
         # Add observers
         observer = user_factory()
@@ -224,7 +230,9 @@ class TestDiscussionModel:
         assert should_archive
         assert "duration" in reason.lower()
 
-    def test_should_archive_round_count(self, discussion_factory, round_factory, config):
+    def test_should_archive_round_count(
+        self, discussion_factory, round_factory, config
+    ):
         """Test archival based on round count."""
         discussion = discussion_factory()
 
@@ -267,12 +275,18 @@ class TestDiscussionParticipant:
         discussion = discussion_factory()
         user = user_factory()
 
-        DiscussionParticipant.objects.create(discussion=discussion, user=user, role="active")
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=user, role="active"
+        )
 
         with pytest.raises(IntegrityError):
-            DiscussionParticipant.objects.create(discussion=discussion, user=user, role="active")
+            DiscussionParticipant.objects.create(
+                discussion=discussion, user=user, role="active"
+            )
 
-    def test_observer_reentry_mrp_expired_posted(self, discussion_factory, user_factory):
+    def test_observer_reentry_mrp_expired_posted(
+        self, discussion_factory, user_factory
+    ):
         """Test observer can rejoin immediately if posted in removal round."""
         discussion = discussion_factory()
         user = user_factory()
@@ -311,10 +325,14 @@ class TestDiscussionParticipant:
         assert not participant.can_rejoin()
 
         # New round started - can rejoin
-        current_round = round_factory(discussion=discussion, round_number=2, status="in_progress")
+        current_round = round_factory(
+            discussion=discussion, round_number=2, status="in_progress"
+        )
         assert participant.can_rejoin()
 
-    def test_observer_reentry_mutual_removal_first_time(self, discussion_factory, user_factory):
+    def test_observer_reentry_mutual_removal_first_time(
+        self, discussion_factory, user_factory
+    ):
         """Test first mutual removal has 24hr wait."""
         discussion = discussion_factory()
         user = user_factory()
@@ -338,7 +356,9 @@ class TestDiscussionParticipant:
 
         assert participant.can_rejoin()
 
-    def test_observer_reentry_mutual_removal_second_time(self, discussion_factory, user_factory):
+    def test_observer_reentry_mutual_removal_second_time(
+        self, discussion_factory, user_factory
+    ):
         """Test second mutual removal has 7 day wait."""
         discussion = discussion_factory()
         user = user_factory()
@@ -362,7 +382,9 @@ class TestDiscussionParticipant:
 
         assert participant.can_rejoin()
 
-    def test_observer_reentry_mutual_removal_third_time(self, discussion_factory, user_factory):
+    def test_observer_reentry_mutual_removal_third_time(
+        self, discussion_factory, user_factory
+    ):
         """Test third mutual removal is effectively permanent."""
         discussion = discussion_factory()
         user = user_factory()
@@ -379,7 +401,9 @@ class TestDiscussionParticipant:
         # Even after a year, cannot rejoin (365 day wait)
         assert not participant.can_rejoin()
 
-    def test_observer_reentry_vote_based_removal(self, discussion_factory, user_factory):
+    def test_observer_reentry_vote_based_removal(
+        self, discussion_factory, user_factory
+    ):
         """Test vote-based removal is permanent."""
         discussion = discussion_factory()
         user = user_factory()
@@ -429,7 +453,9 @@ class TestRoundModel:
         assert round.round_number == 1
         assert round.status == "in_progress"
 
-    def test_unique_round_number_per_discussion(self, discussion_factory, round_factory):
+    def test_unique_round_number_per_discussion(
+        self, discussion_factory, round_factory
+    ):
         """Test that round numbers are unique within a discussion."""
         discussion = discussion_factory()
         round_factory(discussion=discussion, round_number=1)
@@ -607,7 +633,10 @@ class TestResponseModel:
 
         content = "This is a test response with some content."
         response = Response.objects.create(
-            round=round, user=user, content=content, character_count=0  # Will be overwritten
+            round=round,
+            user=user,
+            content=content,
+            character_count=0,  # Will be overwritten
         )
 
         assert response.character_count == len(content)
@@ -618,7 +647,11 @@ class TestResponseModel:
         user = user_factory()
 
         response = Response.objects.create(
-            round=round, user=user, content="Test response", character_count=13, is_locked=True
+            round=round,
+            user=user,
+            content="Test response",
+            character_count=13,
+            is_locked=True,
         )
 
         can_edit, reason = response.can_edit(config)
@@ -631,7 +664,11 @@ class TestResponseModel:
         user = user_factory()
 
         response = Response.objects.create(
-            round=round, user=user, content="Test response", character_count=13, edit_count=2
+            round=round,
+            user=user,
+            content="Test response",
+            character_count=13,
+            edit_count=2,
         )
 
         can_edit, reason = response.can_edit(config)
@@ -685,7 +722,9 @@ class TestVoteModel:
         round = round_factory()
         user = user_factory()
 
-        vote = Vote.objects.create(round=round, user=user, mrl_vote="increase", rtm_vote="decrease")
+        vote = Vote.objects.create(
+            round=round, user=user, mrl_vote="increase", rtm_vote="decrease"
+        )
 
         assert vote.mrl_vote == "increase"
         assert vote.rtm_vote == "decrease"
@@ -695,10 +734,14 @@ class TestVoteModel:
         round = round_factory()
         user = user_factory()
 
-        Vote.objects.create(round=round, user=user, mrl_vote="increase", rtm_vote="no_change")
+        Vote.objects.create(
+            round=round, user=user, mrl_vote="increase", rtm_vote="no_change"
+        )
 
         with pytest.raises(IntegrityError):
-            Vote.objects.create(round=round, user=user, mrl_vote="decrease", rtm_vote="no_change")
+            Vote.objects.create(
+                round=round, user=user, mrl_vote="decrease", rtm_vote="no_change"
+            )
 
 
 @pytest.mark.django_db
@@ -727,10 +770,14 @@ class TestRemovalVoteModel:
         # Create 5 active participants + initiator = 6 total
         participants = [user_factory() for _ in range(5)]
         for user in participants:
-            DiscussionParticipant.objects.create(discussion=discussion, user=user, role="active")
+            DiscussionParticipant.objects.create(
+                discussion=discussion, user=user, role="active"
+            )
 
         # Add target as participant
-        DiscussionParticipant.objects.create(discussion=discussion, user=target, role="active")
+        DiscussionParticipant.objects.create(
+            discussion=discussion, user=target, role="active"
+        )
 
         # Need majority: threshold = 0.5, so need > 50%
         # Total active (excluding target) = 6
@@ -738,7 +785,9 @@ class TestRemovalVoteModel:
 
         # Create 3 votes - exactly at threshold, not enough (need >)
         for i in range(3):
-            RemovalVote.objects.create(round=round, voter=participants[i], target=target)
+            RemovalVote.objects.create(
+                round=round, voter=participants[i], target=target
+            )
 
         votes = RemovalVote.objects.filter(round=round, target=target).count()
         active_count = discussion.get_active_participants().exclude(user=target).count()
@@ -760,7 +809,9 @@ class TestRemovalVoteModel:
 class TestModerationAction:
     """Tests for ModerationAction model."""
 
-    def test_create_moderation_action(self, discussion_factory, round_factory, user_factory):
+    def test_create_moderation_action(
+        self, discussion_factory, round_factory, user_factory
+    ):
         """Test moderation action creation."""
         discussion = discussion_factory()
         round = round_factory(discussion=discussion)
@@ -779,7 +830,9 @@ class TestModerationAction:
         assert action.action_type == "mutual_removal"
         assert not action.is_permanent
 
-    def test_vote_based_removal_is_permanent(self, discussion_factory, round_factory, user_factory):
+    def test_vote_based_removal_is_permanent(
+        self, discussion_factory, round_factory, user_factory
+    ):
         """Test vote-based removals are permanent."""
         discussion = discussion_factory()
         round = round_factory(discussion=discussion)
@@ -843,7 +896,9 @@ class TestInviteModel:
         # Simulate consuming on send
         inviter.consume_invite("platform")
 
-        Invite.objects.create(inviter=inviter, invitee=None, invite_type="platform", status="sent")
+        Invite.objects.create(
+            inviter=inviter, invitee=None, invite_type="platform", status="sent"
+        )
 
         assert inviter.platform_invites_banked == 0
 
@@ -922,7 +977,9 @@ class TestResponseEdit:
 class TestDraftResponse:
     """Tests for DraftResponse model."""
 
-    def test_create_draft_response(self, discussion_factory, round_factory, user_factory):
+    def test_create_draft_response(
+        self, discussion_factory, round_factory, user_factory
+    ):
         """Test draft response creation."""
         discussion = discussion_factory()
         round = round_factory(discussion=discussion)

@@ -23,7 +23,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("new_user_platform_invites", models.IntegerField(default=3)),
@@ -86,13 +89,18 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("password", models.CharField(max_length=128, verbose_name="password")),
                 (
                     "last_login",
-                    models.DateTimeField(blank=True, null=True, verbose_name="last login"),
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="last login"
+                    ),
                 ),
                 (
                     "is_superuser",
@@ -105,25 +113,35 @@ class Migration(migrations.Migration):
                 (
                     "username",
                     models.CharField(
-                        error_messages={"unique": "A user with that username already exists."},
+                        error_messages={
+                            "unique": "A user with that username already exists."
+                        },
                         help_text="Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.",
                         max_length=150,
                         unique=True,
-                        validators=[django.contrib.auth.validators.UnicodeUsernameValidator()],
+                        validators=[
+                            django.contrib.auth.validators.UnicodeUsernameValidator()
+                        ],
                         verbose_name="username",
                     ),
                 ),
                 (
                     "first_name",
-                    models.CharField(blank=True, max_length=150, verbose_name="first name"),
+                    models.CharField(
+                        blank=True, max_length=150, verbose_name="first name"
+                    ),
                 ),
                 (
                     "last_name",
-                    models.CharField(blank=True, max_length=150, verbose_name="last name"),
+                    models.CharField(
+                        blank=True, max_length=150, verbose_name="last name"
+                    ),
                 ),
                 (
                     "email",
-                    models.EmailField(blank=True, max_length=254, verbose_name="email address"),
+                    models.EmailField(
+                        blank=True, max_length=254, verbose_name="email address"
+                    ),
                 ),
                 (
                     "is_staff",
@@ -159,7 +177,10 @@ class Migration(migrations.Migration):
                 (
                     "account_deletion_preference",
                     models.CharField(
-                        choices=[("delete_all", "Delete All"), ("preserve_data", "Preserve Data")],
+                        choices=[
+                            ("delete_all", "Delete All"),
+                            ("preserve_data", "Preserve Data"),
+                        ],
                         default="preserve_data",
                         max_length=20,
                     ),
@@ -202,7 +223,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("topic_headline", models.CharField(max_length=100)),
@@ -249,7 +273,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -310,13 +337,19 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
                     "invite_type",
                     models.CharField(
-                        choices=[("platform", "Platform"), ("discussion", "Discussion")],
+                        choices=[
+                            ("platform", "Platform"),
+                            ("discussion", "Discussion"),
+                        ],
                         max_length=20,
                     ),
                 ),
@@ -375,7 +408,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -429,7 +465,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -453,7 +492,9 @@ class Migration(migrations.Migration):
                 ("enabled", models.BooleanField(default=True)),
                 (
                     "delivery_method",
-                    models.JSONField(default=dict, help_text="JSON with keys: email, push, in_app"),
+                    models.JSONField(
+                        default=dict, help_text="JSON with keys: email, push, in_app"
+                    ),
                 ),
                 (
                     "user",
@@ -474,7 +515,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("content", models.TextField()),
@@ -483,7 +527,10 @@ class Migration(migrations.Migration):
                 ("last_edited_at", models.DateTimeField(blank=True, null=True)),
                 ("edit_count", models.IntegerField(default=0)),
                 ("characters_changed_total", models.IntegerField(default=0)),
-                ("time_since_previous_minutes", models.FloatField(blank=True, null=True)),
+                (
+                    "time_since_previous_minutes",
+                    models.FloatField(blank=True, null=True),
+                ),
                 ("is_locked", models.BooleanField(default=False)),
                 (
                     "user",
@@ -504,7 +551,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("edit_number", models.IntegerField(choices=[(1, "1"), (2, "2")])),
@@ -531,7 +581,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("round_number", models.IntegerField()),
@@ -578,7 +631,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("voted_at", models.DateTimeField(auto_now_add=True)),
@@ -617,7 +673,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -675,7 +734,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("content", models.TextField()),
@@ -726,7 +788,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -775,7 +840,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="user",
-            index=models.Index(fields=["phone_number"], name="users_phone_n_a3b1c5_idx"),
+            index=models.Index(
+                fields=["phone_number"], name="users_phone_n_a3b1c5_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="user",
@@ -789,7 +856,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="discussion",
-            index=models.Index(fields=["initiator"], name="discussions_initiat_d35a74_idx"),
+            index=models.Index(
+                fields=["initiator"], name="discussions_initiat_d35a74_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="discussionparticipant",
@@ -799,12 +868,15 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="discussionparticipant",
-            index=models.Index(fields=["user", "role"], name="discussion__user_id_36579b_idx"),
+            index=models.Index(
+                fields=["user", "role"], name="discussion__user_id_36579b_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="discussionparticipant",
             index=models.Index(
-                fields=["observer_since", "observer_reason"], name="discussion__observe_fdf1bc_idx"
+                fields=["observer_since", "observer_reason"],
+                name="discussion__observe_fdf1bc_idx",
             ),
         ),
         migrations.AlterUniqueTogether(
@@ -813,15 +885,21 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="invite",
-            index=models.Index(fields=["inviter", "status"], name="invites_inviter_082354_idx"),
+            index=models.Index(
+                fields=["inviter", "status"], name="invites_inviter_082354_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="invite",
-            index=models.Index(fields=["invitee", "status"], name="invites_invitee_6a0333_idx"),
+            index=models.Index(
+                fields=["invitee", "status"], name="invites_invitee_6a0333_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="invite",
-            index=models.Index(fields=["discussion"], name="invites_discuss_3decd4_idx"),
+            index=models.Index(
+                fields=["discussion"], name="invites_discuss_3decd4_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="joinrequest",
@@ -837,7 +915,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="notificationpreference",
-            index=models.Index(fields=["user", "enabled"], name="notificatio_user_id_4f7e97_idx"),
+            index=models.Index(
+                fields=["user", "enabled"], name="notificatio_user_id_4f7e97_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
             name="notificationpreference",
@@ -869,19 +949,27 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="response",
-            index=models.Index(fields=["round", "user"], name="responses_round_i_9e7b23_idx"),
+            index=models.Index(
+                fields=["round", "user"], name="responses_round_i_9e7b23_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="response",
-            index=models.Index(fields=["created_at"], name="responses_created_616bff_idx"),
+            index=models.Index(
+                fields=["created_at"], name="responses_created_616bff_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="removalvote",
-            index=models.Index(fields=["round", "voter"], name="removal_vot_round_i_0ec4b5_idx"),
+            index=models.Index(
+                fields=["round", "voter"], name="removal_vot_round_i_0ec4b5_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="removalvote",
-            index=models.Index(fields=["round", "target"], name="removal_vot_round_i_94f68c_idx"),
+            index=models.Index(
+                fields=["round", "target"], name="removal_vot_round_i_94f68c_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
             name="removalvote",
@@ -890,21 +978,27 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name="moderationaction",
             index=models.Index(
-                fields=["discussion", "action_type"], name="moderation__discuss_5038ec_idx"
+                fields=["discussion", "action_type"],
+                name="moderation__discuss_5038ec_idx",
             ),
         ),
         migrations.AddIndex(
             model_name="moderationaction",
-            index=models.Index(fields=["initiator"], name="moderation__initiat_35da7c_idx"),
+            index=models.Index(
+                fields=["initiator"], name="moderation__initiat_35da7c_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="moderationaction",
-            index=models.Index(fields=["target"], name="moderation__target__af6152_idx"),
+            index=models.Index(
+                fields=["target"], name="moderation__target__af6152_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="draftresponse",
             index=models.Index(
-                fields=["discussion", "round", "user"], name="draft_respo_discuss_9d11c7_idx"
+                fields=["discussion", "round", "user"],
+                name="draft_respo_discuss_9d11c7_idx",
             ),
         ),
         migrations.AddIndex(
@@ -915,7 +1009,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="vote",
-            index=models.Index(fields=["round", "user"], name="votes_round_i_954fbb_idx"),
+            index=models.Index(
+                fields=["round", "user"], name="votes_round_i_954fbb_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
             name="vote",

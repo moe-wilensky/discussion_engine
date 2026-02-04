@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold mb-8">Admin Dashboard</h1>
+    
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-sm text-gray-600 mb-1">Total Users</div>
+            <div class="text-3xl font-bold text-gray-900">{{ stats.total_users }}</div>
+            <div class="text-sm text-green-600 mt-2">+{{ stats.new_users_today }} today</div>
+        </div>
+        
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-sm text-gray-600 mb-1">Active Discussions</div>
+            <div class="text-3xl font-bold text-gray-900">{{ stats.active_discussions }}</div>
+            <div class="text-sm text-gray-600 mt-2">{{ stats.total_discussions }} total</div>
+        </div>
+        
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-sm text-gray-600 mb-1">Moderation Queue</div>
+            <div class="text-3xl font-bold text-orange-600">{{ stats.flagged_users }}</div>
+            <div class="text-sm text-gray-600 mt-2">{{ stats.pending_flags }} pending</div>
+        </div>
+        
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="text-sm text-gray-600 mb-1">Platform Health</div>
+            <div class="text-3xl font-bold text-green-600">{{ stats.health_score }}%</div>
+            <div class="text-sm text-gray-600 mt-2">Engagement rate</div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Recent Moderation Actions -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Recent Moderation Actions</h2>
+            <div class="space-y-3">
+                {% for action in recent_moderation %}
+                <div class="border-l-4 {% if action.is_permanent %}border-red-500{% else %}border-yellow-500{% endif %} pl-4 py-2">
+                    <div class="text-sm font-medium">{{ action.get_action_type_display }}</div>
+                    <div class="text-xs text-gray-600">
+                        {{ action.target.username }} • {{ action.created_at|timesince }} ago
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-gray-500 text-sm">No recent actions</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Abuse Detection Alerts -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Abuse Detection Alerts</h2>
+            <div class="space-y-3">
+                {% for alert in abuse_alerts %}
+                <div class="border-l-4 border-red-500 pl-4 py-2">
+                    <div class="text-sm font-medium">{{ alert.pattern_type }}</div>
+                    <div class="text-xs text-gray-600">
+                        {{ alert.user.username }} • Confidence: {{ alert.confidence }}%
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-gray-500 text-sm">No recent alerts</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <a href="{% url 'admin-analytics' %}" class="btn btn-outline text-center">
+                📊 View Analytics
+            </a>
+            <a href="{% url 'admin-config' %}" class="btn btn-outline text-center">
+                ⚙️ Platform Config
+            </a>
+            <a href="{% url 'admin-moderation-queue' %}" class="btn btn-outline text-center">
+                🚨 Moderation Queue
+            </a>
+            <a href="/admin/" class="btn btn-outline text-center">
+                🔧 Django Admin
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

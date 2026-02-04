@@ -46,6 +46,9 @@ class User(AbstractUser):
         default="preserve_data",
     )
 
+    # Phone verification
+    phone_verified = models.BooleanField(default=False)
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -105,6 +108,13 @@ class User(AbstractUser):
         else:
             raise ValueError(f"Invalid invite_type: {invite_type}")
         self.save()
+
+    def is_banned(self) -> bool:
+        """Check if user is currently banned."""
+        active_ban = self.bans.filter(is_active=True).first()
+        if not active_ban:
+            return False
+        return active_ban.is_currently_banned()
 
     def __str__(self):
         return f"{self.username} ({self.phone_number})"
@@ -195,6 +205,9 @@ class PlatformConfig(models.Model):
         """Ensure only one instance exists (singleton)."""
         self.pk = 1
         super().save(*args, **kwargs)
+        # Invalidate cache when configuration changes
+        from django.core.cache import cache
+        cache.delete('platform_config')
 
     def delete(self, *args, **kwargs):
         """Prevent deletion of the singleton instance."""
@@ -202,9 +215,17 @@ class PlatformConfig(models.Model):
 
     @classmethod
     def load(cls):
-        """Load or create the singleton instance."""
-        obj, created = cls.objects.get_or_create(pk=1)
-        return obj
+        """Load or create the singleton instance with caching."""
+        from django.core.cache import cache
+        
+        # Check cache first
+        config = cache.get('platform_config')
+        if config is None:
+            obj, created = cls.objects.get_or_create(pk=1)
+            # Cache for 1 hour
+            cache.set('platform_config', obj, timeout=3600)
+            return obj
+        return config
 
     def __str__(self):
         return "Platform Configuration"
@@ -241,7 +262,11 @@ class Discussion(models.Model):
         User, on_delete=models.CASCADE, related_name="initiated_discussions"
     )
     delegated_approver = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="delegated_discussions"
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="delegated_discussions",
     )
 
     # Timestamps
@@ -258,7 +283,9 @@ class Discussion(models.Model):
     def is_at_participant_cap(self) -> bool:
         """Check if discussion has reached maximum participants."""
         config = PlatformConfig.load()
-        active_count = self.participants.filter(role__in=["initiator", "active"]).count()
+        active_count = self.participants.filter(
+            role__in=["initiator", "active"]
+        ).count()
         return active_count >= config.max_discussion_participants
 
     def get_active_participants(self):
@@ -277,7 +304,10 @@ class Discussion(models.Model):
         # Check duration
         age = timezone.now() - self.created_at
         if age.days >= config.max_discussion_duration_days:
-            return True, f"Exceeded maximum duration of {config.max_discussion_duration_days} days"
+            return (
+                True,
+                f"Exceeded maximum duration of {config.max_discussion_duration_days} days",
+            )
 
         # Check round count
         round_count = self.rounds.count()
@@ -287,7 +317,10 @@ class Discussion(models.Model):
         # Check response count
         response_count = Response.objects.filter(round__discussion=self).count()
         if response_count >= config.max_discussion_responses:
-            return True, f"Exceeded maximum responses of {config.max_discussion_responses}"
+            return (
+                True,
+                f"Exceeded maximum responses of {config.max_discussion_responses}",
+            )
 
         return False, None
 
@@ -305,7 +338,9 @@ class DiscussionParticipant(models.Model):
     discussion = models.ForeignKey(
         Discussion, on_delete=models.CASCADE, related_name="participants"
     )
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="participations")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="participations"
+    )
 
     role = models.CharField(
         max_length=30,
@@ -334,7 +369,8 @@ class DiscussionParticipant(models.Model):
         blank=True,
     )
     posted_in_round_when_removed = models.BooleanField(default=False)
-    removal_count = models.IntegerField(default=0)
+    removal_count = models.IntegerField(default=0)  # Times user initiated removal
+    times_removed = models.IntegerField(default=0)  # Times user was removed by others
 
     # Permissions
     can_invite_others = models.BooleanField(default=True)
@@ -377,7 +413,10 @@ class DiscussionParticipant(models.Model):
                     .first()
                 )
                 # Can rejoin if we're in a later round
-                if removal_round and current_round.round_number > removal_round.round_number:
+                if (
+                    removal_round
+                    and current_round.round_number > removal_round.round_number
+                ):
                     return True
 
         elif self.observer_reason == "mutual_removal":
@@ -442,7 +481,9 @@ class Round(models.Model):
     Tracks round progression, MRP calculation, and voting phases.
     """
 
-    discussion = models.ForeignKey(Discussion, on_delete=models.CASCADE, related_name="rounds")
+    discussion = models.ForeignKey(
+        Discussion, on_delete=models.CASCADE, related_name="rounds"
+    )
     round_number = models.IntegerField()
 
     start_time = models.DateTimeField(auto_now_add=True)
@@ -483,9 +524,9 @@ class Round(models.Model):
             response_times = self.get_response_times()
         elif config.mrp_calculation_scope == "last_X_rounds":
             # Get last X rounds including current
-            rounds = self.discussion.rounds.filter(round_number__lte=self.round_number).order_by(
-                "-round_number"
-            )[: config.mrp_calculation_x_rounds]
+            rounds = self.discussion.rounds.filter(
+                round_number__lte=self.round_number
+            ).order_by("-round_number")[: config.mrp_calculation_x_rounds]
             response_times = []
             for round in rounds:
                 response_times.extend(round.get_response_times())
@@ -533,9 +574,9 @@ class Round(models.Model):
             List of response times in minutes
         """
         return list(
-            self.responses.filter(time_since_previous_minutes__isnull=False).values_list(
-                "time_since_previous_minutes", flat=True
-            )
+            self.responses.filter(
+                time_since_previous_minutes__isnull=False
+            ).values_list("time_since_previous_minutes", flat=True)
         )
 
     def __str__(self):
@@ -590,11 +631,16 @@ class Response(models.Model):
             return False, f"Maximum {config.response_edit_limit} edits reached"
 
         # Check 20% character change rule
-        max_chars_changeable = (self.character_count * config.response_edit_percentage) // 100
+        max_chars_changeable = (
+            self.character_count * config.response_edit_percentage
+        ) // 100
         chars_remaining = max_chars_changeable - self.characters_changed_total
 
         if chars_remaining <= 0:
-            return False, f"Maximum {config.response_edit_percentage}% character change reached"
+            return (
+                False,
+                f"Maximum {config.response_edit_percentage}% character change reached",
+            )
 
         return True, None
 
@@ -651,8 +697,12 @@ class RemovalVote(models.Model):
     a permanent observer.
     """
 
-    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name="removal_votes")
-    voter = models.ForeignKey(User, on_delete=models.CASCADE, related_name="removal_votes_cast")
+    round = models.ForeignKey(
+        Round, on_delete=models.CASCADE, related_name="removal_votes"
+    )
+    voter = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="removal_votes_cast"
+    )
     target = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="removal_votes_received"
     )
@@ -712,7 +762,9 @@ class ModerationAction(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.action_type}: {self.initiator.username} -> {self.target.username}"
+        return (
+            f"{self.action_type}: {self.initiator.username} -> {self.target.username}"
+        )
 
 
 class Invite(models.Model):
@@ -722,9 +774,15 @@ class Invite(models.Model):
     Manages invite lifecycle from sent to accepted/declined/expired.
     """
 
-    inviter = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invites_sent")
+    inviter = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="invites_sent"
+    )
     invitee = models.ForeignKey(
-        User, on_delete=models.CASCADE, null=True, blank=True, related_name="invites_received"
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="invites_received",
     )
 
     invite_type = models.CharField(
@@ -736,7 +794,11 @@ class Invite(models.Model):
     )
 
     discussion = models.ForeignKey(
-        Discussion, on_delete=models.CASCADE, null=True, blank=True, related_name="invites"
+        Discussion,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="invites",
     )
 
     status = models.CharField(
@@ -764,7 +826,9 @@ class Invite(models.Model):
 
     def __str__(self):
         invitee_name = self.invitee.username if self.invitee else "pending"
-        return f"{self.invite_type} invite from {self.inviter.username} to {invitee_name}"
+        return (
+            f"{self.invite_type} invite from {self.inviter.username} to {invitee_name}"
+        )
 
 
 class JoinRequest(models.Model):
@@ -778,7 +842,9 @@ class JoinRequest(models.Model):
     discussion = models.ForeignKey(
         Discussion, on_delete=models.CASCADE, related_name="join_requests"
     )
-    requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name="join_requests_made")
+    requester = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="join_requests_made"
+    )
     approver = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="join_requests_to_approve"
     )
@@ -817,7 +883,9 @@ class ResponseEdit(models.Model):
     Limited to 2 edits per response with 20% character change limit.
     """
 
-    response = models.ForeignKey(Response, on_delete=models.CASCADE, related_name="edits")
+    response = models.ForeignKey(
+        Response, on_delete=models.CASCADE, related_name="edits"
+    )
     edit_number = models.IntegerField(choices=[(1, "1"), (2, "2")])
 
     previous_content = models.TextField()
@@ -847,8 +915,12 @@ class DraftResponse(models.Model):
     discussion = models.ForeignKey(
         Discussion, on_delete=models.CASCADE, related_name="draft_responses"
     )
-    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name="draft_responses")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="draft_responses")
+    round = models.ForeignKey(
+        Round, on_delete=models.CASCADE, related_name="draft_responses"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="draft_responses"
+    )
 
     content = models.TextField()
 
@@ -915,3 +987,222 @@ class NotificationPreference(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.notification_type} ({'enabled' if self.enabled else 'disabled'})"
+
+
+class NotificationLog(models.Model):
+    """
+    Stores in-app notifications for users.
+
+    Tracks notification delivery, read status, and context.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
+
+    notification_type = models.CharField(max_length=50)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    context = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    is_critical = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "notification_logs"
+        indexes = [
+            models.Index(fields=["user", "read", "created_at"]),
+            models.Index(fields=["user", "notification_type"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.notification_type} ({'read' if self.read else 'unread'})"
+
+
+class AuditLog(models.Model):
+    """
+    Tracks all administrative actions for compliance and investigation.
+
+    Records who did what to whom, when, and why.
+    """
+
+    admin = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="admin_actions"
+    )
+
+    action_type = models.CharField(
+        max_length=50
+    )  # ban_user, unban_user, update_config, etc.
+    target_type = models.CharField(max_length=50)  # user, discussion, config, etc.
+    target_id = models.CharField(max_length=100, null=True, blank=True)
+
+    details = models.JSONField(default=dict, blank=True)
+    reason = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "audit_logs"
+        indexes = [
+            models.Index(fields=["admin", "created_at"]),
+            models.Index(fields=["target_type", "target_id"]),
+            models.Index(fields=["action_type", "created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        admin_name = self.admin.username if self.admin else "System"
+        return f"{admin_name} - {self.action_type} on {self.target_type}"
+
+
+class AdminFlag(models.Model):
+    """
+    Tracks users flagged for admin review.
+
+    Used for moderation queue and abuse detection follow-up.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="admin_flags")
+
+    flagged_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="flags_created"
+    )
+
+    reason = models.TextField()
+    notes = models.TextField(blank=True)
+
+    # Detection metadata
+    detection_type = models.CharField(
+        max_length=50, null=True, blank=True
+    )  # spam, multi_account, etc.
+    confidence = models.FloatField(null=True, blank=True)
+    signals = models.JSONField(default=list, blank=True)
+
+    # Resolution
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("resolved", "Resolved"),
+        ],
+        default="pending",
+    )
+    resolution = models.CharField(
+        max_length=50, null=True, blank=True
+    )  # no_action, warned, banned
+    resolution_notes = models.TextField(blank=True)
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="flags_resolved"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "admin_flags"
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["flagged_by", "created_at"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} flagged by {self.flagged_by.username if self.flagged_by else 'System'} - {self.status}"
+
+
+class UserBan(models.Model):
+    """
+    Tracks user bans (temporary and permanent).
+
+    Used to enforce authentication restrictions and observer status.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bans")
+
+    banned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="bans_issued"
+    )
+
+    reason = models.TextField()
+
+    # Duration
+    is_permanent = models.BooleanField(default=True)
+    duration_days = models.IntegerField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    # Status
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    lifted_at = models.DateTimeField(null=True, blank=True)
+    lifted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="bans_lifted"
+    )
+    lift_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "user_bans"
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["expires_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def is_currently_banned(self) -> bool:
+        """Check if ban is currently active."""
+        if not self.is_active:
+            return False
+
+        if self.is_permanent:
+            return True
+
+        if self.expires_at and timezone.now() >= self.expires_at:
+            return False
+
+        return True
+
+    def __str__(self):
+        ban_type = "Permanent" if self.is_permanent else f"{self.duration_days} days"
+        status = "Active" if self.is_active else "Lifted"
+        return f"{self.user.username} - {ban_type} ban ({status})"
+
+
+class UserDevice(models.Model):
+    """
+    Stores user device tokens for push notifications via Firebase Cloud Messaging.
+    
+    Each device gets a unique FCM token that allows sending push notifications.
+    Users can have multiple devices registered.
+    """
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="devices")
+    fcm_token = models.CharField(max_length=255, unique=True)
+    device_type = models.CharField(
+        max_length=20,
+        choices=[
+            ("ios", "iOS"),
+            ("android", "Android"),
+            ("web", "Web"),
+        ],
+    )
+    device_name = models.CharField(max_length=100, blank=True, help_text="Optional device name (e.g., 'John's iPhone')")
+    is_active = models.BooleanField(default=True)
+    last_used = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "user_devices"
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["fcm_token"]),
+        ]
+        ordering = ["-last_used"]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.device_type} ({self.device_name or 'Unnamed'})"
+

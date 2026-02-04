@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>This is a reminder that your response in the discussion "<strong>{{ topic }}</strong>" is approaching the deadline.</p>
+
+<div class="warning-box">
+    <h3>⏰ Time Remaining</h3>
+    <p><strong>{{ hours_remaining }} hours</strong> until the Minimum Response Period (MRP) expires.</p>
+    <p>After this time, the discussion may end if the minimum number of responses has been received.</p>
+</div>
+
+<p>If you'd like to contribute, please submit your response soon!</p>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>You've been invited to join a discussion on <strong>{{ topic }}</strong>.</p>
+
+<div class="info-box">
+    <h3>Discussion Details</h3>
+    <p><strong>Topic:</strong> {{ topic }}</p>
+    <p><strong>Invited by:</strong> {{ initiator_name }}</p>
+    <p><strong>Participants:</strong> {{ participant_count }} people</p>
+</div>
+
+<p>This discussion uses our structured format to ensure thoughtful, meaningful conversation.</p>
+
+<p>Click the button below to view and respond to this invitation.</p>
+{% endblock %}

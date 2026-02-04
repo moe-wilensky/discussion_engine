@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ discussion.topic_headline }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Discussion Header -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div class="flex-1">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ discussion.topic_headline }}</h1>
+                <p class="text-gray-600">{{ discussion.topic_details }}</p>
+            </div>
+            <div class="ml-6 flex-shrink-0">
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if discussion.status == 'active' %}bg-green-100 text-green-800
+                    {% elif discussion.status == 'voting' %}bg-blue-100 text-blue-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ discussion.get_status_display }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Round & Phase Info -->
+        <div class="border-t border-gray-200 pt-4 mt-4">
+            <div class="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-500">Round:</span>
+                    <span class="font-semibold ml-2">{{ current_round.round_number }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Phase:</span>
+                    <span class="font-semibold ml-2">{{ current_round.get_status_display }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Responses:</span>
+                    <span class="font-semibold ml-2">{{ response_count }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MRP Timer -->
+        {% if can_respond and mrp_deadline %}
+        <div class="mt-4">
+            {% include "components/mrp_timer.html" with deadline=mrp_deadline user_id=request.user.id discussion_id=discussion.id %}
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="mt-6 flex gap-3">
+            {% if can_respond %}
+            <a href="{% url 'discussion-participate' discussion.id %}" class="btn btn-primary">
+                Submit Response
+            </a>
+            {% endif %}
+            
+            {% if can_vote %}
+            <a href="{% url 'discussion-voting' discussion.id %}" class="btn btn-secondary">
+                Vote on Changes
+            </a>
+            {% endif %}
+            
+            {% if is_participant %}
+            <a href="{% url 'moderation-history' discussion.id %}" class="btn btn-outline">
+                Moderation History
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Participant List -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Participants ({{ participants.count }})</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {% for participant in participants %}
+            <div class="flex items-center">
+                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 font-semibold">
+                    {{ participant.user.username|slice:":1"|upper }}
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">{{ participant.user.username }}</p>
+                    <p class="text-xs text-gray-500">{{ participant.get_role_display }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Response Thread -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Responses</h2>
+        
+        <div class="space-y-4">
+            {% for response in responses %}
+                {% include "components/response_card.html" with response=response %}
+            {% empty %}
+                <p class="text-gray-500 text-center py-8">No responses yet. Be the first to respond!</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+// WebSocket for real-time updates
+const ws = new WebSocket('ws://{{ request.get_host }}/ws/discussion/{{ discussion.id }}/');
+
+ws.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    
+    if (data.type === 'new_response') {
+        // Reload page or dynamically add response
+        location.reload();
+    } else if (data.type === 'phase_transition') {
+        location.reload();
+    } else if (data.type === 'mrp_update') {
+        // Update timer display
+        updateMRPTimer(data.time_remaining);
+    }
+};
+</script>
+{% endblock %}

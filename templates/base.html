@@ -1,0 +1,182 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Discussion Engine Platform">
+    <title>{% block title %}Discussion Engine{% endblock %}</title>
+
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/toast.css' %}">
+    
+    <style>
+        .notification-badge {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="h-full" data-authenticated="{% if user.is_authenticated %}true{% else %}false{% endif %}"{% if discussion %} data-discussion-id="{{ discussion.id }}"{% endif %}>
+    <div class="min-h-full">
+        <!-- Navigation -->
+        <nav class="bg-indigo-600" aria-label="Main navigation">
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="flex h-16 items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <a href="{% url 'dashboard' %}" class="text-white text-xl font-bold">
+                                Discussion Engine
+                            </a>
+                        </div>
+                        {% if user.is_authenticated %}
+                        <div class="hidden md:block">
+                            <div class="ml-10 flex items-baseline space-x-4">
+                                <a href="{% url 'dashboard' %}" 
+                                   class="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                                   aria-label="Dashboard">
+                                    Dashboard
+                                </a>
+                                <a href="{% url 'discussion-list' %}" 
+                                   class="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                                   aria-label="Browse Discussions">
+                                    Discussions
+                                </a>
+                                <a href="{% url 'invites' %}" 
+                                   class="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                                   aria-label="Manage Invites">
+                                    Invites
+                                </a>
+                                {% if user.is_staff %}
+                                <a href="{% url 'admin-dashboard' %}" 
+                                   class="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                                   aria-label="Admin Dashboard">
+                                    Admin
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if user.is_authenticated %}
+                    <div class="flex items-center space-x-4">
+                        <!-- Notification Bell -->
+                        <button type="button" 
+                                hx-get="{% url 'notifications' %}"
+                                hx-target="#notification-panel"
+                                hx-swap="innerHTML"
+                                class="relative text-white hover:text-gray-200 p-2 rounded-full hover:bg-indigo-500"
+                                aria-label="View notifications">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                            <span id="notification-count" 
+                                  class="notification-badge absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                                0
+                            </span>
+                        </button>
+                        
+                        <!-- User Menu -->
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open" 
+                                    type="button" 
+                                    class="flex max-w-xs items-center rounded-full bg-indigo-600 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+                                    aria-expanded="false" 
+                                    aria-haspopup="true"
+                                    aria-label="User menu">
+                                <span class="px-3 py-2">{{ user.username }}</span>
+                            </button>
+                            
+                            <div x-show="open" 
+                                 @click.away="open = false"
+                                 class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5"
+                                 role="menu" 
+                                 aria-orientation="vertical">
+                                <a href="{% url 'notifications' %}" 
+                                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                                   role="menuitem">
+                                    Notifications
+                                </a>
+                                <a href="{% url 'user-settings' %}" 
+                                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                                   role="menuitem">
+                                    Settings
+                                </a>
+                                <a href="{% url 'logout' %}" 
+                                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                                   role="menuitem">
+                                    Sign out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="flex items-center space-x-4">
+                        <a href="{% url 'login' %}" 
+                           class="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium">
+                            Login
+                        </a>
+                        <a href="{% url 'register' %}" 
+                           class="bg-white text-indigo-600 hover:bg-gray-100 px-4 py-2 rounded-md text-sm font-medium">
+                            Register
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+
+        <!-- Flash Messages -->
+        {% if messages %}
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-4">
+            {% for message in messages %}
+            <div class="rounded-md {% if message.tags == 'error' %}bg-red-50 border-red-400{% elif message.tags == 'success' %}bg-green-50 border-green-400{% else %}bg-blue-50 border-blue-400{% endif %} p-4 mb-4 border-l-4"
+                 role="alert">
+                <p class="text-sm {% if message.tags == 'error' %}text-red-800{% elif message.tags == 'success' %}text-green-800{% else %}text-blue-800{% endif %}">
+                    {{ message }}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Main Content -->
+        <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Notification Panel (hidden by default) -->
+    <div id="notification-panel" class="hidden"></div>
+    
+    <!-- WebSocket Status Indicator -->
+    <div id="ws-status" class="ws-status" title="Connection status"></div>
+
+    <!-- Alpine.js for interactive components -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="{% static 'js/character-counter.js' %}"></script>
+    <script src="{% static 'js/form-validation.js' %}"></script>
+    <script src="{% static 'js/timer.js' %}"></script>
+    <script src="{% static 'js/modal.js' %}"></script>
+    <script src="{% static 'js/websocket.js' %}"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

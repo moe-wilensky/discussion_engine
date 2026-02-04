@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Vote on Changes{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'discussion-detail' discussion.id %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Discussion
+        </a>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h1 class="text-2xl font-bold mb-2">Inter-Round Voting</h1>
+        <p class="text-gray-600 mb-4">Vote on parameter changes and moderation actions for the next round.</p>
+        
+        <!-- Voting Window Timer -->
+        {% if voting_deadline %}
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-blue-800 font-medium">Voting closes in <span id="voting-countdown" class="font-bold">...</span></span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <form method="post" id="voting-form">
+        {% csrf_token %}
+        
+        <!-- Section 1: Parameter Changes -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">1. Parameter Changes</h2>
+            <p class="text-sm text-gray-600 mb-6">Vote on proposed changes to discussion parameters.</p>
+            
+            <div class="space-y-6">
+                <!-- Max Response Length -->
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-medium mb-2">Maximum Response Length (MRL)</h3>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Current: <span class="font-semibold">{{ current_params.max_response_length_chars }}</span> characters
+                    </div>
+                    
+                    {% include "components/voting_ballot.html" with parameter="max_response_length" current=current_params.max_response_length_chars eligible_voters=eligible_voters %}
+                    
+                    <div class="mt-2 text-xs text-gray-500">
+                        Note: Not voting counts as "no change". {{ vote_threshold }}% of {{ eligible_voters }} eligible voters must agree for change to pass.
+                    </div>
+                </div>
+
+                <!-- Response Time Multiplier -->
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-medium mb-2">Response Time Multiplier (RTM)</h3>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Current: <span class="font-semibold">{{ current_params.response_time_multiplier }}</span>
+                    </div>
+                    
+                    {% include "components/voting_ballot.html" with parameter="response_time_multiplier" current=current_params.response_time_multiplier eligible_voters=eligible_voters %}
+                </div>
+
+                <!-- Minimum Response Time -->
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-medium mb-2">Minimum Response Time (MRM)</h3>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Current: <span class="font-semibold">{{ current_params.min_response_time_minutes }}</span> minutes
+                    </div>
+                    
+                    {% include "components/voting_ballot.html" with parameter="min_response_time" current=current_params.min_response_time_minutes eligible_voters=eligible_voters %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Moderation Votes -->
+        {% if removal_targets %}
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">2. Remove Participants</h2>
+            <p class="text-sm text-gray-600 mb-6">
+                Vote to remove participants who are disruptive. Removal requires {{ removal_threshold }}% agreement.
+                Removed participants become permanent observers.
+            </p>
+            
+            <div class="space-y-4">
+                {% for target in removal_targets %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-medium">{{ target.username }}</h3>
+                            <p class="text-sm text-gray-600">{{ target.response_count }} responses in this discussion</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="removal_{{ target.id }}" value="remove" class="mr-2">
+                            <span>Remove</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="removal_{{ target.id }}" value="keep" class="mr-2" checked>
+                            <span>Keep</span>
+                        </label>
+                    </div>
+                    
+                    <div class="mt-2 text-xs text-gray-500">
+                        Current votes: <span class="font-medium">{{ target.removal_votes }}</span> of {{ eligible_voters }} eligible voters
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Submit Button -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    <p class="font-medium mb-1">⚠️ Important:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>You cannot change your votes after submitting</li>
+                        <li>Abstaining (not voting) counts as "no change"</li>
+                        <li>Voting window closes in <span id="deadline-display" class="font-semibold">...</span></li>
+                    </ul>
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="btn btn-primary px-8"
+                    onclick="return confirm('Are you sure you want to submit your votes? This cannot be undone.');"
+                >
+                    Submit All Votes
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+// Countdown timer
+const votingDeadline = new Date('{{ voting_deadline|date:"c" }}');
+
+function updateCountdown() {
+    const now = new Date();
+    const remaining = votingDeadline - now;
+    
+    if (remaining <= 0) {
+        document.getElementById('voting-countdown').textContent = 'EXPIRED';
+        document.getElementById('deadline-display').textContent = 'EXPIRED';
+        document.getElementById('voting-form').innerHTML = '<div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center"><p class="text-red-800 font-medium">Voting window has closed.</p></div>';
+        return;
+    }
+    
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+    
+    const display = `${hours}h ${minutes}m ${seconds}s`;
+    document.getElementById('voting-countdown').textContent = display;
+    document.getElementById('deadline-display').textContent = display;
+}
+
+setInterval(updateCountdown, 1000);
+updateCountdown();
+</script>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Platform Configuration{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'admin-dashboard' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">Platform Configuration</h1>
+            <button type="button" onclick="resetToDefaults()" class="btn btn-outline text-sm">
+                Reset to Defaults
+            </button>
+        </div>
+        
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-2">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <form method="post" id="config-form">
+            {% csrf_token %}
+            
+            <!-- Discussion Parameters -->
+            <div class="mb-8">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b">Discussion Parameters</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Default Max Response Length
+                            <span class="text-gray-500 font-normal">(characters)</span>
+                        </label>
+                        <input type="number" name="default_max_response_length_chars" 
+                            value="{{ config.default_max_response_length_chars }}"
+                            min="100" max="10000" step="100"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Range: 100-10,000</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Default Response Time Multiplier
+                        </label>
+                        <input type="number" name="default_response_time_multiplier" 
+                            value="{{ config.default_response_time_multiplier }}"
+                            min="0.5" max="5.0" step="0.1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Range: 0.5-5.0</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Default Min Response Time
+                            <span class="text-gray-500 font-normal">(minutes)</span>
+                        </label>
+                        <input type="number" name="default_min_response_time_minutes" 
+                            value="{{ config.default_min_response_time_minutes }}"
+                            min="5" max="1440" step="5"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Range: 5-1,440 (1 day)</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Max Participants
+                        </label>
+                        <input type="number" name="max_participants_per_discussion" 
+                            value="{{ config.max_participants_per_discussion }}"
+                            min="3" max="100" step="1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Range: 3-100</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Invitation System -->
+            <div class="mb-8">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b">Invitation System</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Initial Platform Invites
+                        </label>
+                        <input type="number" name="initial_platform_invites" 
+                            value="{{ config.initial_platform_invites }}"
+                            min="0" max="10" step="1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Invites new users start with</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Invite Earn Threshold
+                        </label>
+                        <input type="number" name="invite_earn_threshold_responses" 
+                            value="{{ config.invite_earn_threshold_responses }}"
+                            min="1" max="10" step="1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Responses per round to earn invite</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Moderation -->
+            <div class="mb-8">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b">Moderation</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Removal Vote Threshold
+                            <span class="text-gray-500 font-normal">(%)</span>
+                        </label>
+                        <input type="number" name="removal_vote_threshold_percent" 
+                            value="{{ config.removal_vote_threshold_percent }}"
+                            min="50" max="100" step="5"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Percentage needed to remove participant</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Max Mutual Removals
+                        </label>
+                        <input type="number" name="max_mutual_removals_per_user" 
+                            value="{{ config.max_mutual_removals_per_user }}"
+                            min="1" max="5" step="1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Removals before permanent observer</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Response Editing -->
+            <div class="mb-8">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b">Response Editing</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Max Edits Per Response
+                        </label>
+                        <input type="number" name="max_edits_per_response" 
+                            value="{{ config.max_edits_per_response }}"
+                            min="0" max="10" step="1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Edit Budget Multiplier
+                        </label>
+                        <input type="number" name="edit_budget_multiplier" 
+                            value="{{ config.edit_budget_multiplier }}"
+                            min="0.05" max="0.5" step="0.05"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">Fraction of response length</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="previewChanges()" class="btn btn-outline">
+                    Preview Changes
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function previewChanges() {
+    const form = document.getElementById('config-form');
+    const formData = new FormData(form);
+    const changes = [];
+    
+    for (let [key, value] of formData.entries()) {
+        if (key !== 'csrfmiddlewaretoken') {
+            changes.push(`${key}: ${value}`);
+        }
+    }
+    
+    alert('Preview of changes:\n\n' + changes.join('\n'));
+}
+
+function resetToDefaults() {
+    if (confirm('Are you sure you want to reset all configuration to default values?')) {
+        document.getElementById('config-form').reset();
+        // You could also submit a form action to reset on server side
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Register - Discussion Engine{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <h2 class="text-center text-3xl font-bold tracking-tight text-gray-900 mb-8">
+            Create your account
+        </h2>
+        
+        <form method="post" 
+              hx-post="{% url 'register' %}" 
+              hx-target="#form-container" 
+              hx-swap="outerHTML"
+              id="form-container"
+              class="space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">
+                    Username
+                </label>
+                <input type="text" 
+                       name="username" 
+                       id="username" 
+                       required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Username"
+                       maxlength="150">
+                <p class="mt-1 text-sm text-gray-500">Choose a unique username</p>
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700">
+                    Email address
+                </label>
+                <input type="email" 
+                       name="email" 
+                       id="email" 
+                       required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Email address">
+            </div>
+
+            <div>
+                <label for="phone_number" class="block text-sm font-medium text-gray-700">
+                    Phone number
+                </label>
+                <input type="tel" 
+                       name="phone_number" 
+                       id="phone_number" 
+                       required 
+                       placeholder="+1234567890"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Phone number">
+                <p class="mt-1 text-sm text-gray-500">Include country code (e.g., +1 for US)</p>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">
+                    Password
+                </label>
+                <input type="password" 
+                       name="password" 
+                       id="password" 
+                       required 
+                       minlength="8"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Password">
+                <p class="mt-1 text-sm text-gray-500">At least 8 characters</p>
+            </div>
+
+            <div>
+                <label for="password_confirm" class="block text-sm font-medium text-gray-700">
+                    Confirm password
+                </label>
+                <input type="password" 
+                       name="password_confirm" 
+                       id="password_confirm" 
+                       required 
+                       minlength="8"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Confirm password">
+            </div>
+
+            <div>
+                <button type="submit" 
+                        class="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Request Verification Code
+                </button>
+            </div>
+        </form>
+
+        <div class="mt-6">
+            <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-300"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="bg-white px-2 text-gray-500">
+                        Already have an account?
+                    </span>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <a href="{% url 'login' %}" 
+                   class="flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                    Sign in
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

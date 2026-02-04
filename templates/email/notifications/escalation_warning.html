@@ -1,0 +1,17 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<div class="warning-box">
+    <h3>⚠️ Escalation Notice</h3>
+    <p>You've used mutual removal {{ count }} times recently.</p>
+    <p>Repeated use of this feature may result in restrictions on your account.</p>
+</div>
+
+<p><strong>Why this matters</strong></p>
+<p>Mutual removal is designed for genuine incompatibilities, not as a way to avoid differing viewpoints.</p>
+
+<p><strong>What should I do?</strong></p>
+<p>Please use this feature thoughtfully and only when necessary.</p>
+{% endblock %}

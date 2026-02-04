@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Submit Response{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'discussion-detail' discussion.id %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Discussion
+        </a>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <h1 class="text-2xl font-bold mb-4">Submit Your Response</h1>
+        
+        <!-- MRP Timer -->
+        {% if mrp_deadline %}
+        <div class="mb-6">
+            {% include "components/mrp_timer.html" with deadline=mrp_deadline user_id=request.user.id discussion_id=discussion.id %}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'discussion-participate' discussion.id %}" id="response-form" hx-post="{% url 'discussion-participate' discussion.id %}" hx-target="#response-result">
+            {% csrf_token %}
+            
+            <!-- Quote Selector -->
+            {% if previous_responses %}
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Quote Previous Response (Optional)
+                </label>
+                {% include "components/quote_selector.html" with responses=previous_responses %}
+            </div>
+            {% endif %}
+
+            <!-- Response Content -->
+            <div class="mb-6">
+                <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+                    Your Response
+                </label>
+                <textarea 
+                    name="content" 
+                    id="content" 
+                    rows="10" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Type your response here..."
+                    required
+                >{{ draft_content }}</textarea>
+                
+                <!-- Character Counter -->
+                <div class="mt-2 flex justify-between text-sm">
+                    <div class="char-counter">
+                        <span id="char-count" class="font-medium">0</span> /
+                        <span class="text-gray-600">{{ max_length }} characters</span>
+                        <span id="char-status" class="ml-3"></span>
+                    </div>
+                    {% if is_edit %}
+                    <div class="text-gray-600">
+                        <span id="edit-budget">You can change <span id="budget-remaining" class="font-medium">{{ edit_budget }}</span> more characters</span>
+                        <span class="ml-4">Edit <span class="font-medium">{{ edit_number }}</span> of {{ max_edits }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Validation Message -->
+                <div id="char-error" class="text-red-600 mt-1 hidden">
+                    Minimum {{ min_length }} characters required
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-between items-center">
+                <button 
+                    type="button" 
+                    id="save-draft-btn"
+                    class="btn btn-outline"
+                    hx-post="{% url 'discussion-participate' discussion.id %}?draft=true"
+                    hx-include="#content"
+                >
+                    Save Draft
+                </button>
+                
+                <button 
+                    type="submit" 
+                    id="submit-btn"
+                    class="btn btn-primary"
+                    disabled
+                >
+                    Submit Response
+                </button>
+            </div>
+        </form>
+
+        <div id="response-result" class="mt-4"></div>
+    </div>
+</div>
+
+<script>
+const contentArea = document.getElementById('content');
+const charCount = document.getElementById('char-count');
+const charStatus = document.getElementById('char-status');
+const charError = document.getElementById('char-error');
+const submitBtn = document.getElementById('submit-btn');
+const minLength = {{ min_length }};
+const maxLength = {{ max_length }};
+{% if is_edit %}
+const editBudget = {{ edit_budget }};
+const originalContent = `{{ original_content|escapejs }}`;
+{% endif %}
+
+// Character counter with real-time validation
+contentArea.addEventListener('input', function() {
+    const length = this.value.length;
+    charCount.textContent = length;
+    
+    // Validation
+    if (length < minLength) {
+        const remaining = minLength - length;
+        charStatus.textContent = `${remaining} more characters needed`;
+        charStatus.className = 'ml-3 text-yellow-600';
+        charError.classList.remove('hidden');
+        submitBtn.disabled = true;
+    } else if (length > maxLength) {
+        const excess = length - maxLength;
+        charStatus.textContent = `${excess} characters over limit`;
+        charStatus.className = 'ml-3 text-red-600';
+        charError.classList.add('hidden');
+        submitBtn.disabled = true;
+    } else {
+        {% if is_edit %}
+        // Check edit budget
+        const diff = calculateCharDiff(originalContent, this.value);
+        const budgetRemaining = editBudget - diff;
+        document.getElementById('budget-remaining').textContent = Math.max(0, budgetRemaining);
+        
+        if (diff > editBudget) {
+            charStatus.textContent = `Edit budget exceeded by ${diff - editBudget} characters`;
+            charStatus.className = 'ml-3 text-red-600';
+            charError.classList.add('hidden');
+            submitBtn.disabled = true;
+        } else {
+            charStatus.textContent = '✓ Valid length';
+            charStatus.className = 'ml-3 text-green-600';
+            charError.classList.add('hidden');
+            submitBtn.disabled = false;
+        }
+        {% else %}
+        charStatus.textContent = '✓ Valid length';
+        charStatus.className = 'ml-3 text-green-600';
+        charError.classList.add('hidden');
+        submitBtn.disabled = false;
+        {% endif %}
+    }
+});
+
+// Trigger on load
+contentArea.dispatchEvent(new Event('input'));
+
+// Auto-save draft every 30 seconds
+setInterval(function() {
+    if (contentArea.value.length > 0) {
+        document.getElementById('save-draft-btn').click();
+    }
+}, 30000);
+
+{% if is_edit %}
+function calculateCharDiff(original, edited) {
+    // Simple Levenshtein distance calculation
+    const m = original.length;
+    const n = edited.length;
+    const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (original[i-1] === edited[j-1]) {
+                dp[i][j] = dp[i-1][j-1];
+            } else {
+                dp[i][j] = Math.min(
+                    dp[i-1][j] + 1,    // deletion
+                    dp[i][j-1] + 1,    // insertion
+                    dp[i-1][j-1] + 1   // substitution
+                ) ;
+            }
+        }
+    }
+    
+    return dp[m][n];
+}
+{% endif %}
+
+// MRP expiration warning
+{% if mrp_deadline %}
+const mrpDeadline = new Date('{{ mrp_deadline|date:"c" }}');
+
+setInterval(function() {
+    const now = new Date();
+    const timeRemaining = mrpDeadline - now;
+    
+    if (timeRemaining <= 0 && contentArea.value.length > 0) {
+        showToast('MRP has expired! Your draft may be orphaned.', 'warning');
+    }
+}, 60000); // Check every minute
+{% endif %}
+</script>
+{% endblock %}

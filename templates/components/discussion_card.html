@@ -1,0 +1,49 @@
+<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+    <div class="flex items-start justify-between">
+        <div class="flex-1">
+            <h3 class="text-sm font-medium text-gray-900">
+                <a href="{% url 'discussion-detail' discussion.id %}" class="hover:text-indigo-600">
+                    {{ discussion.topic }}
+                </a>
+            </h3>
+            <p class="text-xs text-gray-500 mt-1">
+                Round {{ discussion.current_round }} • 
+                {{ discussion.participants.count }} participant{{ discussion.participants.count|pluralize }} •
+                {{ discussion.responses.count }} response{{ discussion.responses.count|pluralize }}
+            </p>
+            <div class="mt-2 flex items-center space-x-4">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                    {% if discussion.status == 'active' %}bg-green-100 text-green-800
+                    {% elif discussion.status == 'voting' %}bg-blue-100 text-blue-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ discussion.get_status_display }}
+                </span>
+                {% if discussion.current_phase %}
+                <span class="text-xs text-gray-600">
+                    Phase {{ discussion.current_phase }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        {% if show_action %}
+        <div class="ml-4">
+            {% if discussion.needs_response %}
+            <a href="{% url 'discussion-participate' discussion.id %}" 
+               class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                Respond Now
+            </a>
+            {% elif discussion.status == 'voting' %}
+            <a href="{% url 'discussion-voting' discussion.id %}" 
+               class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                Vote
+            </a>
+            {% else %}
+            <a href="{% url 'discussion-detail' discussion.id %}" 
+               class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                View
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>

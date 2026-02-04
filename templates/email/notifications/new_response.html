@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>You have a new response in the discussion "<strong>{{ topic }}</strong>".</p>
+
+<div class="info-box">
+    <h3>New Activity</h3>
+    <p><strong>From:</strong> {{ author_name }}</p>
+    <p><strong>Round:</strong> {{ round_number }}</p>
+</div>
+
+<p>View the response and continue the conversation!</p>
+{% endblock %}

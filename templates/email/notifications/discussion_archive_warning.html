@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>The discussion "<strong>{{ topic }}</strong>" will be archived in <strong>{{ days_remaining }} days</strong> due to inactivity.</p>
+
+<div class="warning-box">
+    <h3>Why is this happening?</h3>
+    <p>Discussions are archived after a period of inactivity to keep the platform focused on active conversations.</p>
+    <p>Once archived, the discussion will be read-only.</p>
+</div>
+
+<p>If you'd like to keep this discussion active, please add a response or comment.</p>
+{% endblock %}

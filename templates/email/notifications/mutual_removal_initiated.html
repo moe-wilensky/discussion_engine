@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<p>Hello {{ recipient_name }},</p>
+
+<p>Another participant has initiated a mutual removal in the discussion "<strong>{{ topic }}</strong>".</p>
+
+<div class="info-box">
+    <h3>What happened</h3>
+    <p>Another participant has indicated they prefer not to continue the discussion with you in this group.</p>
+    <p>This is part of our mutual moderation system designed to give participants control over their discussion experience.</p>
+</div>
+
+<p>If this feeling is mutual, you can also initiate removal. If both parties agree, you'll both become observers.</p>
+{% endblock %}
