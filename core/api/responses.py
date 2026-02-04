@@ -4,6 +4,7 @@ Response API endpoints.
 Handles response submission, editing, drafts, and quotes.
 """
 
+import logging
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -21,6 +22,8 @@ from core.api.serializers import (
 from core.services.response_service import ResponseService
 from core.services.quote_service import QuoteService
 from core.services.round_service import RoundService
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
@@ -112,7 +115,11 @@ def create_response(request, discussion_id, round_number):
             content=serializer.validated_data["content"],
         )
     except Exception as e:
-        return DRFResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error submitting response: {e}")
+        return DRFResponse(
+            {"error": "Failed to submit response. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     # Refresh round to get updated MRP
     round_obj.refresh_from_db()
@@ -189,7 +196,11 @@ def edit_response(request, response_id):
             config=config,
         )
     except Exception as e:
-        return DRFResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error editing response: {e}")
+        return DRFResponse(
+            {"error": "Failed to edit response. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     # Get latest edit
     latest_edit = updated_response.edits.latest("edited_at")
@@ -332,6 +343,10 @@ def create_quote(request, response_id):
             quoted_text=serializer.validated_data["quoted_text"],
         )
     except Exception as e:
-        return DRFResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error creating quote: {e}")
+        return DRFResponse(
+            {"error": "Failed to create quote. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     return DRFResponse({"quote_markdown": quote_markdown})

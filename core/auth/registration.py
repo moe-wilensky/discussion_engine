@@ -4,8 +4,7 @@ Phone-based registration service for user authentication.
 Handles phone number verification via SMS with time-limited codes.
 """
 
-import random
-import string
+import secrets
 import uuid
 from datetime import timedelta
 from typing import Optional, Tuple
@@ -133,8 +132,12 @@ class PhoneVerificationService:
 
     @classmethod
     def _generate_code(cls) -> str:
-        """Generate a 6-digit verification code."""
-        return "".join(random.choices(string.digits, k=cls.CODE_LENGTH))
+        """Generate a cryptographically secure 6-digit verification code."""
+        # Use secrets.randbelow to generate a random 6-digit number
+        # This ensures cryptographically secure random generation
+        code_number = secrets.randbelow(1000000)
+        # Format with leading zeros to ensure 6 digits
+        return f"{code_number:06d}"
 
     @classmethod
     def _check_rate_limit(cls, phone_number: str) -> bool:

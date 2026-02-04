@@ -4,6 +4,7 @@ Invite system API endpoints.
 Handles platform and discussion invites, sending, accepting, and tracking.
 """
 
+import logging
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -23,6 +24,8 @@ from core.api.serializers import (
     DiscussionInviteResponseSerializer,
     InviteSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema(
@@ -109,6 +112,7 @@ def send_platform_invite(request):
 
     except ValidationError as e:
         error_msg = e.messages[0] if hasattr(e, "messages") and e.messages else str(e)
+        logger.exception(f"Error sending platform invite: {e}")
         return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -194,6 +198,7 @@ def send_discussion_invite(request):
 
     except ValidationError as e:
         error_msg = e.messages[0] if hasattr(e, "messages") and e.messages else str(e)
+        logger.exception(f"Error sending discussion invite: {e}")
         return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -265,6 +270,7 @@ def accept_invite(request, invite_id):
 
     except ValidationError as e:
         error_msg = e.messages[0] if hasattr(e, "messages") and e.messages else str(e)
+        logger.exception(f"Error accepting invite: {e}")
         return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -295,6 +301,7 @@ def decline_invite(request, invite_id):
 
     except ValidationError as e:
         error_msg = e.messages[0] if hasattr(e, "messages") and e.messages else str(e)
+        logger.exception(f"Error declining invite: {e}")
         return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
 

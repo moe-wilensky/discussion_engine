@@ -11,6 +11,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseForbidden
+from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
@@ -54,6 +55,13 @@ def verify_phone_view(request):
         # On success, login and redirect to dashboard
         return redirect("dashboard")
     return render(request, "auth/verify_phone.html")
+
+
+@require_http_methods(["POST"])
+def resend_verification_view(request):
+    """Resend verification code (HTMX endpoint)."""
+    # TODO: Integrate with PhoneVerificationService to resend code
+    return JsonResponse({"status": "success", "message": "Verification code resent"})
 
 
 def login_view(request):
@@ -494,6 +502,7 @@ def user_search(request):
 
 
 @login_required
+@require_http_methods(["POST"])
 def mark_notification_read(request, notification_id):
     """Mark a notification as read (HTMX endpoint)."""
     notification = get_object_or_404(

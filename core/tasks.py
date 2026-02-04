@@ -5,12 +5,15 @@ Handles SMS sending, notifications, MRP expiration checks, and background proces
 """
 
 import os
+import logging
 from celery import shared_task
 from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, max_retries=3)
@@ -25,8 +28,10 @@ def send_verification_sms(self, phone_number: str, code: str):
     # Check if in test mode (use environment variable)
     if os.environ.get("TWILIO_TEST_MODE", "true").lower() == "true":
         # Mock mode - log instead of sending
-        print(f"[MOCK SMS] To: {phone_number}, Code: {code}")
-        return f"Mock SMS sent to {phone_number}"
+        # SECURITY: Never log verification codes or full phone numbers
+        masked_phone = f"***-***-{phone_number[-4:]}" if len(phone_number) >= 4 else "***-***-****"
+        logger.info(f"[MOCK SMS] Verification code sent to {masked_phone}")
+        return f"Mock SMS sent to {masked_phone}"
 
     try:
         from twilio.rest import Client
@@ -68,9 +73,9 @@ def send_invite_notification(invite_id: str):
 
         # In production, this would send push notification or email
         # For now, just log
-        print(
-            f"[NOTIFICATION] Discussion invite sent to {invite.invitee.username} "
-            f"for {invite.discussion.topic_headline}"
+        logger.info(
+            f"Discussion invite sent to {invite.invitee.username} "
+            f"for discussion: {invite.discussion.topic_headline}"
         )
 
         return f"Notification sent for invite {invite_id}"
@@ -92,8 +97,8 @@ def send_join_request_notification(request_id: str):
     try:
         request = JoinRequest.objects.get(id=request_id)
 
-        print(
-            f"[NOTIFICATION] Join request from {request.requester.username} "
+        logger.info(
+            f"Join request from {request.requester.username} "
             f"for {request.discussion.topic_headline} sent to {request.approver.username}"
         )
 
@@ -116,8 +121,8 @@ def send_join_request_approved_notification(request_id: str):
     try:
         request = JoinRequest.objects.get(id=request_id)
 
-        print(
-            f"[NOTIFICATION] Join request approved: {request.requester.username} "
+        logger.info(
+            f"Join request approved: {request.requester.username} "
             f"can now participate in {request.discussion.topic_headline}"
         )
 
@@ -140,8 +145,8 @@ def send_join_request_declined_notification(request_id: str):
     try:
         request = JoinRequest.objects.get(id=request_id)
 
-        print(
-            f"[NOTIFICATION] Join request declined: {request.requester.username} "
+        logger.info(
+            f"Join request declined: {request.requester.username} "
             f"for {request.discussion.topic_headline}"
         )
 
@@ -167,7 +172,7 @@ def cleanup_expired_invites():
         status="expired"
     )
 
-    print(f"[CLEANUP] Marked {expired_count} invites as expired")
+    logger.info(f"Marked {expired_count} invites as expired")
 
     return f"Expired {expired_count} invites"
 
@@ -180,7 +185,7 @@ def cleanup_expired_verification_codes():
     This is mostly handled by Redis TTL, but this ensures cleanup.
     """
     # Cache entries auto-expire, but we can log this for monitoring
-    print("[CLEANUP] Verification code cleanup complete")
+    logger.debug("Verification code cleanup complete")
     return "Cleanup complete"
 
 
@@ -249,8 +254,8 @@ def check_mrp_expirations():
 
         # Check if MRP expired
         if RoundService.is_mrp_expired(round):
-            print(
-                f"[MRP] Round {round.id} (Discussion {round.discussion.id}) MRP expired"
+            logger.info(
+                f"MRP expired for Round {round.id} in Discussion {round.discussion.id}"
             )
 
             # Handle expiration
@@ -300,8 +305,8 @@ def check_phase_1_timeouts():
 
     for round in round_1_rounds:
         if RoundService.check_phase_1_timeout(round, config):
-            print(
-                f"[TIMEOUT] Discussion {round.discussion.id} archived due to Phase 1 timeout"
+            logger.info(
+                f"Discussion {round.discussion.id} archived due to Phase 1 timeout"
             )
             archived_count += 1
 
@@ -357,8 +362,8 @@ def send_mrp_warning(discussion_id: int, round_number: int, percentage_remaining
                     },
                 )
 
-            print(
-                f"[MRP WARNING] Discussion {discussion_id} Round {round_number}: "
+            logger.info(
+                f"MRP warning sent for Discussion {discussion_id} Round {round_number}: "
                 f"{percentage_remaining}% remaining"
             )
 
@@ -387,8 +392,8 @@ def send_single_response_warning(discussion_id: int, round_number: int):
         response_count = round_obj.responses.count()
 
         if response_count <= 1:
-            print(
-                f"[WARNING] Discussion {discussion_id} Round {round_number} has only "
+            logger.warning(
+                f"Discussion {discussion_id} Round {round_number} has only "
                 f"{response_count} response(s) - will be archived if MRP expires"
             )
 
@@ -580,8 +585,8 @@ def send_voting_window_closing_warning(round_id: int, time_remaining: int):
     try:
         round_obj = Round.objects.get(id=round_id)
         # In production, send actual notifications
-        print(
-            f"[WARNING] Voting window for Round {round_obj.round_number} closing in {time_remaining} minutes"
+        logger.info(
+            f"Voting window for Round {round_obj.round_number} closing in {time_remaining} minutes"
         )
         return f"Sent warning for round {round_id}"
     except Round.DoesNotExist:
@@ -606,8 +611,8 @@ def send_removal_warning(
     try:
         user = User.objects.get(id=user_id)
         discussion = Discussion.objects.get(id=discussion_id)
-        print(
-            f"[WARNING] User {user.username} has {votes_against} votes against them (threshold: {threshold}%)"
+        logger.warning(
+            f"User {user.username} has {votes_against} votes against them (threshold: {threshold}%)"
         )
         return f"Sent removal warning to user {user_id}"
     except (User.DoesNotExist, Discussion.DoesNotExist):
@@ -631,15 +636,12 @@ def send_permanent_observer_notification(
     try:
         user = User.objects.get(id=user_id)
         discussion = Discussion.objects.get(id=discussion_id)
-        print(
-            f"[NOTIFICATION] User {user.username} became permanent observer due to: {consequence}"
+        logger.info(
+            f"User {user.username} became permanent observer due to: {consequence}"
         )
         return f"Sent permanent observer notification to user {user_id}"
     except (User.DoesNotExist, Discussion.DoesNotExist):
         return "User or discussion not found"
-
-    print("[CLEANUP] Verification code cleanup completed")
-    return "Verification code cleanup completed"
 
 
 @shared_task

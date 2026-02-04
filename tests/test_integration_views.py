@@ -427,7 +427,7 @@ class HTMXEndpointTests(ViewIntegrationTestCase):
         )
 
         self.client.login(username="testuser1", password="testpass123")
-        response = self.client.get(
+        response = self.client.post(
             reverse("mark-notification-read", kwargs={"notification_id": notification.id})
         )
 

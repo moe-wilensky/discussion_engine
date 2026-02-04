@@ -4,6 +4,7 @@ Authentication API endpoints.
 Handles phone-based registration, verification, and JWT token management.
 """
 
+import logging
 from datetime import timedelta
 
 from rest_framework import status
@@ -15,6 +16,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db import transaction
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+from django_ratelimit.decorators import ratelimit
+from django_ratelimit.exceptions import Ratelimited
 
 from core.auth.registration import PhoneVerificationService
 from core.services.invite_service import InviteService
@@ -27,15 +30,19 @@ from core.api.serializers import (
     UserSerializer,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @extend_schema(
     request=PhoneVerificationRequestSerializer,
     responses={
         200: PhoneVerificationResponseSerializer,
         400: OpenApiResponse(description="Validation error"),
+        429: OpenApiResponse(description="Too many requests"),
     },
     description="Request SMS verification code for registration",
 )
+@ratelimit(key='ip', rate='5/h', method='POST')
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def request_verification(request):
@@ -43,7 +50,15 @@ def request_verification(request):
     Request phone verification code.
 
     POST /api/auth/register/request-verification/
+    Rate limit: 5 requests per hour per IP
     """
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many verification requests. Please try again later."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     serializer = PhoneVerificationRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -79,9 +94,11 @@ def request_verification(request):
     responses={
         200: OpenApiResponse(description="User created and authenticated"),
         400: OpenApiResponse(description="Invalid code or invite"),
+        429: OpenApiResponse(description="Too many requests"),
     },
     description="Verify code and complete registration",
 )
+@ratelimit(key='ip', rate='10/h', method='POST')
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def verify_and_register(request):
@@ -89,7 +106,15 @@ def verify_and_register(request):
     Verify code and register user.
 
     POST /api/auth/register/verify/
+    Rate limit: 10 requests per hour per IP
     """
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many registration attempts. Please try again later."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     serializer = VerifyCodeSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -168,7 +193,11 @@ def verify_and_register(request):
             )
 
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error during user registration: {e}")
+        return Response(
+            {"error": "Registration failed. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @extend_schema(
@@ -176,9 +205,11 @@ def verify_and_register(request):
     responses={
         200: PhoneVerificationResponseSerializer,
         400: OpenApiResponse(description="Invalid phone number"),
+        429: OpenApiResponse(description="Too many requests"),
     },
     description="Request login verification code",
 )
+@ratelimit(key='ip', rate='10/h', method='POST')
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_request(request):
@@ -186,7 +217,15 @@ def login_request(request):
     Request login verification code.
 
     POST /api/auth/login/
+    Rate limit: 10 requests per hour per IP
     """
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many login requests. Please try again later."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -206,11 +245,12 @@ def login_request(request):
         # Generate code directly for login
         from core.auth.registration import PhoneVerificationService
         import uuid
-        import random
-        import string
+        import secrets
         from django.core.cache import cache
 
-        code = "".join(random.choices(string.digits, k=6))
+        # Use cryptographically secure random generation
+        code_number = secrets.randbelow(1000000)
+        code = f"{code_number:06d}"
         verification_id = str(uuid.uuid4())
 
         code_key = f"{PhoneVerificationService.CODE_PREFIX}{verification_id}"
@@ -239,7 +279,11 @@ def login_request(request):
         )
 
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error sending login verification code: {e}")
+        return Response(
+            {"error": "Failed to send verification code. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @extend_schema(

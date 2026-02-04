@@ -5,14 +5,66 @@ Handles email template rendering and delivery for all notification types.
 """
 
 from typing import Dict, Optional
+import logging
 from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.validators import validate_email as django_validate_email
+from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils.html import strip_tags
+from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
     """Service for rendering and sending emails with templates."""
+
+    @staticmethod
+    def validate_email(email: str) -> bool:
+        """
+        Validate email address format.
+
+        Args:
+            email: Email address to validate
+
+        Returns:
+            bool: True if email is valid, False otherwise
+        """
+        try:
+            django_validate_email(email)
+            return True
+        except ValidationError:
+            logger.error(f"Invalid email address format: {email[:3]}***@***")
+            return False
+
+    @staticmethod
+    def check_rate_limit(recipient_email: str) -> bool:
+        """
+        Check if email rate limit has been exceeded.
+
+        Args:
+            recipient_email: Recipient's email address
+
+        Returns:
+            bool: True if within rate limit, False if exceeded
+        """
+        # Get rate limit from settings (default: 10 emails per hour)
+        rate_limit = getattr(settings, 'EMAIL_RATE_LIMIT', 10)
+
+        # Create cache key for this recipient
+        cache_key = f"email_rate_limit:{recipient_email}"
+
+        # Get current count from cache
+        current_count = cache.get(cache_key, 0)
+
+        if current_count >= rate_limit:
+            logger.warning(f"Email rate limit exceeded for recipient: {recipient_email[:3]}***@***")
+            return False
+
+        # Increment count and set to expire in 1 hour
+        cache.set(cache_key, current_count + 1, 3600)
+        return True
 
     @staticmethod
     def send_email(
@@ -35,6 +87,16 @@ class EmailService:
         Returns:
             bool: True if email was sent successfully, False otherwise
         """
+        # Validate email address
+        if not EmailService.validate_email(recipient_email):
+            logger.error(f"Failed to send email: invalid email address")
+            return False
+
+        # Check rate limiting
+        if not EmailService.check_rate_limit(recipient_email):
+            logger.warning(f"Failed to send email: rate limit exceeded for recipient")
+            return False
+
         if from_email is None:
             from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@discussionplatform.com')
 
@@ -60,11 +122,11 @@ class EmailService:
             # Send email
             email.send(fail_silently=False)
 
+            logger.info(f"Email sent successfully to {recipient_email[:3]}***@*** - Subject: {subject}")
             return True
 
         except Exception as e:
-            # Log error (in production, use proper logging)
-            print(f"Error sending email: {e}")
+            logger.error(f"Error sending email to {recipient_email[:3]}***@***: {e}")
             return False
 
     @staticmethod

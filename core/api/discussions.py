@@ -4,6 +4,7 @@ Discussion API endpoints.
 Handles discussion creation, retrieval, and parameter previews.
 """
 
+import logging
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -20,6 +21,8 @@ from core.api.serializers import (
 from core.services.discussion_presets import DiscussionPreset
 from core.services.discussion_service import DiscussionService
 from core.services.round_service import RoundService
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
@@ -159,7 +162,11 @@ def create_discussion(request):
             initial_invites=initial_invites,
         )
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        logger.exception(f"Error creating discussion: {e}")
+        return Response(
+            {"error": "Failed to create discussion. Please try again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     # Get current round info
     current_round = discussion.rounds.first()

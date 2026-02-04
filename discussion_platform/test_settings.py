@@ -38,6 +38,14 @@ PASSWORD_HASHERS = [
 # Twilio test mode
 TWILIO_TEST_MODE = True
 
+# Use simple static files storage for tests (no manifest required)
+# This avoids needing to run collectstatic before tests
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 
 # Disable migrations for faster tests
 class DisableMigrations:

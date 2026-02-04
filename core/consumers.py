@@ -9,8 +9,11 @@ Handles real-time updates for:
 """
 
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+
+logger = logging.getLogger(__name__)
 
 
 class DiscussionConsumer(AsyncWebsocketConsumer):
@@ -24,11 +27,45 @@ class DiscussionConsumer(AsyncWebsocketConsumer):
         """Handle WebSocket connection."""
         self.discussion_id = self.scope["url_route"]["kwargs"]["discussion_id"]
         self.room_group_name = f"discussion_{self.discussion_id}"
+        self.user = self.scope.get("user")
+
+        # Check authentication
+        if not self.user or not self.user.is_authenticated:
+            logger.warning(
+                f"Unauthorized WebSocket connection attempt to discussion {self.discussion_id}"
+            )
+            await self.close(code=4001)
+            return
+
+        # Check if user is a participant in the discussion
+        has_access = await self.check_discussion_access()
+        if not has_access:
+            logger.warning(
+                f"User {self.user.id} attempted to connect to discussion {self.discussion_id} without participant access"
+            )
+            await self.close(code=4003)
+            return
 
         # Join discussion channel
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
         await self.accept()
+
+    @database_sync_to_async
+    def check_discussion_access(self):
+        """
+        Check if the user is a participant in the discussion.
+
+        Returns:
+            bool: True if user is a participant, False otherwise
+        """
+        from core.models import Discussion
+
+        try:
+            discussion = Discussion.objects.get(id=self.discussion_id)
+            return discussion.participants.filter(user=self.user).exists()
+        except Discussion.DoesNotExist:
+            return False
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""

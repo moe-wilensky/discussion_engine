@@ -38,6 +38,7 @@ urlpatterns = [
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("verify-phone/", views.verify_phone_view, name="verify-phone"),
+    path("resend-verification/", views.resend_verification_view, name="resend-verification"),
     path("password-reset/", views.password_reset_view, name="password-reset"),
     # Dashboard
     path("", views.dashboard_view, name="dashboard"),

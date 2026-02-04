@@ -18,6 +18,7 @@ from core.models import (
     ResponseEdit,
     DraftResponse,
 )
+from core.utils.sanitization import clean_content
 
 
 class PhoneVerificationRequestSerializer(serializers.Serializer):
@@ -58,6 +59,8 @@ class TokenRefreshSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     """User serialization."""
 
+    phone_number = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -73,6 +76,29 @@ class UserSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+    def get_phone_number(self, obj):
+        """
+        Mask phone number for non-owners.
+
+        - User themselves: full phone number
+        - Admins: full phone number
+        - Others: last 4 digits only (***-***-1234)
+        """
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            # Not authenticated - mask completely
+            return "***-***-****"
+
+        # Show full number to user themselves or admins
+        if request.user.id == obj.id or request.user.is_staff:
+            return str(obj.phone_number)
+
+        # Mask for other users - show only last 4 digits
+        phone_str = str(obj.phone_number)
+        if len(phone_str) >= 4:
+            return f"***-***-{phone_str[-4:]}"
+        return "***-***-****"
 
 
 class InviteMetricsSerializer(serializers.Serializer):
@@ -161,6 +187,12 @@ class JoinRequestCreateSerializer(serializers.Serializer):
 
     message = serializers.CharField(required=False, allow_blank=True, max_length=500)
 
+    def validate_message(self, value):
+        """Sanitize message to prevent XSS attacks."""
+        if value:
+            return clean_content(value)
+        return value
+
 
 class JoinRequestSerializer(serializers.ModelSerializer):
     """Join request serialization."""
@@ -222,6 +254,12 @@ class JoinRequestActionSerializer(serializers.Serializer):
     response_message = serializers.CharField(
         required=False, allow_blank=True, max_length=500
     )
+
+    def validate_response_message(self, value):
+        """Sanitize response message to prevent XSS attacks."""
+        if value:
+            return clean_content(value)
+        return value
 
 
 class DiscussionSummarySerializer(serializers.ModelSerializer):
@@ -288,6 +326,14 @@ class DiscussionCreateSerializer(serializers.Serializer):
     initial_invites = serializers.ListField(
         child=serializers.IntegerField(), required=False, allow_empty=True
     )
+
+    def validate_headline(self, value):
+        """Sanitize headline to prevent XSS attacks."""
+        return clean_content(value)
+
+    def validate_details(self, value):
+        """Sanitize details to prevent XSS attacks."""
+        return clean_content(value)
 
 
 class DiscussionParticipantSerializer(serializers.ModelSerializer):
@@ -421,11 +467,19 @@ class ResponseCreateSerializer(serializers.Serializer):
 
     content = serializers.CharField()
 
+    def validate_content(self, value):
+        """Sanitize content to prevent XSS attacks."""
+        return clean_content(value)
+
 
 class ResponseEditSerializer(serializers.Serializer):
     """Edit a response."""
 
     content = serializers.CharField()
+
+    def validate_content(self, value):
+        """Sanitize content to prevent XSS attacks."""
+        return clean_content(value)
 
 
 class DraftResponseSerializer(serializers.Serializer):
@@ -435,6 +489,10 @@ class DraftResponseSerializer(serializers.Serializer):
     reason = serializers.ChoiceField(
         choices=["mrp_expired", "user_saved", "round_ended"]
     )
+
+    def validate_content(self, value):
+        """Sanitize content to prevent XSS attacks."""
+        return clean_content(value)
 
 
 class QuoteCreateSerializer(serializers.Serializer):
