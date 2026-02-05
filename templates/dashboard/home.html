@@ -92,6 +92,64 @@
         </div>
     </div>
 
+    <!-- My Stats Section -->
+    <div class="bg-white shadow sm:rounded-lg mb-6">
+        <div class="px-4 py-5 sm:p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">
+                📊 My Stats
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-indigo-600">{{ user_stats.total_discussions }}</div>
+                    <div class="text-xs text-gray-600 mt-1">Total Discussions</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-green-600">{{ user_stats.total_responses }}</div>
+                    <div class="text-xs text-gray-600 mt-1">Responses Posted</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-blue-600">{{ user_stats.participation_count }}</div>
+                    <div class="text-xs text-gray-600 mt-1">Participations</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-purple-600">{{ user_stats.votes_cast }}</div>
+                    <div class="text-xs text-gray-600 mt-1">Votes Cast</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Progress -->
+    {% if not user.tutorial_completed %}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <p class="text-sm text-yellow-700">
+                    <strong>Complete the platform tutorial</strong> to learn how to make the most of discussions.
+                </p>
+                <div class="mt-2">
+                    <button onclick="startTutorial()" class="text-sm font-medium text-yellow-700 underline hover:text-yellow-600">
+                        Start Tutorial →
+                    </button>
+                </div>
+            </div>
+            <div class="ml-auto pl-3">
+                <button onclick="dismissTutorial()" class="inline-flex text-yellow-400 hover:text-yellow-500">
+                    <span class="sr-only">Dismiss</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <!-- Active Discussions -->
         <div class="bg-white shadow sm:rounded-lg">
@@ -214,4 +272,59 @@
         </div>
     </div>
 </div>
+
+<script>
+function startTutorial() {
+    // Redirect to tutorial or show tutorial modal
+    // For now, we'll just mark it complete via API
+    fetch('/api/onboarding/tutorial/', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Show tutorial steps (could be a modal or new page)
+        alert('Tutorial feature coming soon! For now, this will mark as complete.');
+        completeTutorial();
+    })
+    .catch(error => console.error('Error loading tutorial:', error));
+}
+
+function completeTutorial() {
+    fetch('/api/onboarding/tutorial/complete/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        location.reload(); // Refresh to hide tutorial banner
+    })
+    .catch(error => console.error('Error completing tutorial:', error));
+}
+
+function dismissTutorial() {
+    // Just complete it for now
+    completeTutorial();
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
 {% endblock %}

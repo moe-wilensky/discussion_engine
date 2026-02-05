@@ -48,6 +48,11 @@ def register_view(request):
     return render(request, "auth/register.html")
 
 
+def register_page(request):
+    """User registration page (alias for E2E tests)."""
+    return render(request, "auth/register.html")
+
+
 def verify_phone_view(request):
     """Phone verification form."""
     if request.method == "POST":
@@ -130,8 +135,19 @@ def dashboard_view(request):
         ).count(),
     }
 
+    # User stats
+    user_stats = {
+        "total_discussions": DiscussionParticipant.objects.filter(user=user).count(),
+        "total_responses": Response.objects.filter(user=user).count(),
+        "participation_count": DiscussionParticipant.objects.filter(
+            user=user, role__in=["initiator", "active"]
+        ).count(),
+        "votes_cast": 0,  # TODO: Add voting model query when available
+    }
+
     context = {
         "stats": stats,
+        "user_stats": user_stats,
         "active_discussions": active_discussions,
         "pending_invites": pending_invites,
         "recent_notifications": recent_notifications,
@@ -159,11 +175,31 @@ def invites_view(request):
         .order_by("-sent_at")
     )
 
+    # Get user's own platform invite code (most recent active one)
+    user_invite = (
+        Invite.objects.filter(
+            inviter=user, invite_type="platform", status="sent"
+        )
+        .order_by("-sent_at")
+        .first()
+    )
+
+    # Calculate invite stats
+    invite_stats = {
+        "available": user.platform_invites_banked,
+        "acquired": user.platform_invites_acquired,
+        "sent": sent_invites.count(),
+        "acceptance_rate": 0,  # TODO: Calculate actual acceptance rate
+    }
+
     context = {
         "received_invites": received_invites,
         "sent_invites": sent_invites,
         "platform_invites_banked": user.platform_invites_banked,
         "discussion_invites_banked": user.discussion_invites_banked,
+        "user_invite_code": user_invite.code if user_invite else None,
+        "user_invite_expiration": user_invite.expires_at if user_invite else None,
+        "invite_stats": invite_stats,
     }
 
     return render(request, "dashboard/invites.html", context)
@@ -255,20 +291,43 @@ def discussion_create_view(request):
 @login_required
 def discussion_list_view(request):
     """Browse discussions."""
+    user = request.user
     discussions = (
-        Discussion.objects.filter(status__in=["active", "voting"])
+        Discussion.objects.filter(status__in=["active", "voting", "archived"])
         .annotate(participant_count=Count("participants"))
         .order_by("-created_at")
     )
 
     # Filter by search query
-    query = request.GET.get("q")
-    if query:
+    search_query = request.GET.get("search", "").strip()
+    if search_query:
         discussions = discussions.filter(
-            Q(topic_headline__icontains=query) | Q(topic_details__icontains=query)
+            Q(topic_headline__icontains=search_query)
+            | Q(topic_details__icontains=search_query)
         )
 
-    context = {"discussions": discussions, "query": query}
+    # Filter by status/type
+    filter_type = request.GET.get("filter", "all")
+    if filter_type == "active":
+        discussions = discussions.filter(status="active")
+    elif filter_type == "archived":
+        discussions = discussions.filter(status="archived")
+    elif filter_type == "mine":
+        # Get discussions where user is a participant
+        user_discussion_ids = DiscussionParticipant.objects.filter(
+            user=user
+        ).values_list("discussion_id", flat=True)
+        discussions = discussions.filter(id__in=user_discussion_ids)
+
+    context = {
+        "discussions": discussions,
+        "search_query": search_query,
+        "filter": filter_type,
+    }
+
+    # If HTMX request, only return the discussion list partial
+    if request.headers.get("HX-Request"):
+        return render(request, "discussions/partials/discussion_list.html", context)
 
     return render(request, "discussions/list.html", context)
 
@@ -276,6 +335,8 @@ def discussion_list_view(request):
 @login_required
 def discussion_detail_view(request, discussion_id):
     """Discussion detail view with responses."""
+    from core.models import JoinRequest
+    
     discussion = get_object_or_404(Discussion, id=discussion_id)
 
     # Check if user is a participant
@@ -297,6 +358,27 @@ def discussion_detail_view(request, discussion_id):
     participants = DiscussionParticipant.objects.filter(
         discussion=discussion
     ).select_related("user")
+    
+    # Get join requests for moderators/initiators
+    pending_join_requests = []
+    all_join_requests = []
+    is_moderator = False
+    
+    if participant:
+        is_moderator = (
+            participant.role == "initiator" or
+            discussion.delegated_approver == request.user
+        )
+        
+        if is_moderator:
+            pending_join_requests = JoinRequest.objects.filter(
+                discussion=discussion,
+                status="pending"
+            ).select_related("requester").order_by("-created_at")
+            
+            all_join_requests = JoinRequest.objects.filter(
+                discussion=discussion
+            ).exclude(status="pending").select_related("requester").order_by("-resolved_at")[:10]
 
     context = {
         "discussion": discussion,
@@ -305,6 +387,9 @@ def discussion_detail_view(request, discussion_id):
         "participants": participants,
         "can_respond": participant and participant.role in ["initiator", "active"],
         "is_observer": participant and participant.role in ["temporary_observer", "permanent_observer"],
+        "is_moderator": is_moderator,
+        "pending_join_requests": pending_join_requests,
+        "all_join_requests": all_join_requests,
     }
 
     return render(request, "discussions/detail.html", context)
@@ -531,5 +616,85 @@ def mark_all_read(request):
 @login_required
 def notification_preferences_view(request):
     """View/update notification preferences."""
-    # This would render a preferences page or return JSON for HTMX
-    return JsonResponse({"preferences": {}})
+    from core.models import NotificationPreference
+    from core.services.notification_service import NotificationService
+    
+    # Ensure all preferences exist
+    NotificationService.create_notification_preferences(request.user)
+    
+    if request.method == "POST":
+        # First, collect all notification types that have any checkboxes
+        # Format: pref_{notification_type}_{delivery_method}
+        # Where delivery_method is one of: email, push, in_app
+        notif_types_in_form = set()
+        delivery_methods = {'email', 'push', 'in_app'}
+        
+        for key in request.POST.keys():
+            if key.startswith("pref_"):
+                # Remove "pref_" prefix
+                rest = key[5:]  # Skip "pref_"
+                
+                # Check which delivery method suffix it has
+                for dm in delivery_methods:
+                    if rest.endswith(f"_{dm}"):
+                        # Extract notification type by removing the delivery method suffix
+                        notif_type = rest[:-len(dm)-1]  # -1 for the underscore
+                        notif_types_in_form.add(notif_type)
+                        break
+        
+        # Update preferences for each notification type
+        preferences_updated = 0
+        for notif_type in notif_types_in_form:
+            try:
+                pref = NotificationPreference.objects.get(
+                    user=request.user,
+                    notification_type=notif_type
+                )
+                
+                # For each delivery method, check if the checkbox was submitted
+                # If not submitted, it means unchecked (set to False)
+                new_delivery = {
+                    "email": f"pref_{notif_type}_email" in request.POST,
+                    "push": f"pref_{notif_type}_push" in request.POST,
+                    "in_app": f"pref_{notif_type}_in_app" in request.POST,
+                }
+                
+                pref.delivery_method = new_delivery
+                pref.enabled = any(new_delivery.values())
+                pref.save()
+                preferences_updated += 1
+            except NotificationPreference.DoesNotExist:
+                pass
+        
+        messages.success(request, f"Updated {preferences_updated} notification preferences.")
+        return redirect("notification-preferences-view")
+    
+    # Get all preferences organized by category
+    preferences = NotificationPreference.objects.filter(user=request.user).order_by("notification_type")
+    
+    # Organize by category
+    discussion_prefs = []
+    system_prefs = []
+    social_prefs = []
+    
+    for pref in preferences:
+        pref_data = {
+            "type": pref.notification_type,
+            "label": pref.get_notification_type_display(),
+            "enabled": pref.enabled,
+            "delivery": pref.delivery_method or {"email": False, "push": False, "in_app": True},
+            "is_critical": pref.notification_type in NotificationService.CRITICAL_NOTIFICATIONS
+        }
+        
+        if pref.notification_type in ["new_response", "round_ending_soon", "voting_phase_started"]:
+            discussion_prefs.append(pref_data)
+        elif pref.notification_type in ["parameter_changed", "became_observer", "can_rejoin", "discussion_archived"]:
+            system_prefs.append(pref_data)
+        else:
+            social_prefs.append(pref_data)
+    
+    return render(request, "dashboard/notification_preferences.html", {
+        "discussion_prefs": discussion_prefs,
+        "system_prefs": system_prefs,
+        "social_prefs": social_prefs
+    })

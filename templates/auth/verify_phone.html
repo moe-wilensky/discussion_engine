@@ -11,17 +11,13 @@
         </h2>
         <p class="text-center text-sm text-gray-600 mb-8">
             We sent a verification code to<br>
-            <strong>{{ phone_number }}</strong>
+            <strong id="phone-number-display"></strong>
         </p>
         
-        <form method="post" 
-              hx-post="{% url 'verify-phone' %}" 
-              hx-target="#form-container" 
-              hx-swap="outerHTML"
-              id="form-container"
+        <form method="post"
+              id="verification-form"
               class="space-y-6">
             {% csrf_token %}
-            <input type="hidden" name="phone_number" value="{{ phone_number }}">
             
             <div>
                 <label for="code" class="block text-sm font-medium text-gray-700">
@@ -49,14 +45,138 @@
         </form>
 
         <div class="mt-6 text-center">
-            <button hx-post="{% url 'resend-verification' %}" 
-                    hx-target="#message-container"
+            <button type="button"
+                    id="resend-button"
                     class="text-sm text-indigo-600 hover:text-indigo-500">
                 Didn't receive the code? Resend
             </button>
         </div>
-        
+
         <div id="message-container" class="mt-4"></div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Retrieve registration data from sessionStorage
+    const registrationData = JSON.parse(sessionStorage.getItem('registration_data') || '{}');
+
+    // Display phone number
+    const phoneDisplay = document.getElementById('phone-number-display');
+    if (phoneDisplay && registrationData.phone_number) {
+        phoneDisplay.textContent = registrationData.phone_number;
+    }
+
+    // Handle form submission
+    const form = document.getElementById('verification-form');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const code = formData.get('code');
+
+        const messageContainer = document.getElementById('message-container');
+
+        if (!registrationData.verification_id) {
+            messageContainer.innerHTML = '<div class="text-red-600 text-sm text-center">Session expired. Please start registration again.</div>';
+            setTimeout(() => {
+                window.location.href = '/register/';
+            }, 2000);
+            return;
+        }
+
+        // Show loading message
+        messageContainer.innerHTML = '<div class="text-gray-600 text-sm text-center">Verifying...</div>';
+
+        try {
+            const response = await fetch('/api/auth/register/verify/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                body: JSON.stringify({
+                    verification_id: registrationData.verification_id,
+                    code: code,
+                    username: registrationData.username,
+                    invite_code: registrationData.invite_code || ''
+                })
+            });
+
+            let data;
+            try:
+                data = await response.json();
+            } catch (jsonError) {
+                console.error('Failed to parse JSON:', jsonError);
+                messageContainer.innerHTML = '<div class="text-red-600 text-sm text-center">Server error: Invalid response format</div>';
+                return;
+            }
+
+            if (response.ok) {
+                messageContainer.innerHTML = '<div class="text-green-600 text-sm text-center" id="success-message">Registration successful! Redirecting...</div>';
+                // Clear session data
+                sessionStorage.removeItem('registration_data');
+                // Redirect to dashboard (root path)
+                const redirectUrl = window.location.origin + '/';
+                window.location.replace(redirectUrl);
+                // Fallback in case replace doesn't work
+                window.location.href = redirectUrl;
+                return;
+            } else {
+                // Show error message
+                messageContainer.innerHTML = '<div class="text-red-600 text-sm text-center">' +
+                    (data.error || 'Verification failed. Please try again.') + '</div>';
+            }
+        } catch (error) {
+            console.error('Verification error:', error);
+            messageContainer.innerHTML = '<div class="text-red-600 text-sm text-center">An error occurred: ' + error.message + '</div>';
+        }
+    });
+
+    // Handle resend button
+    const resendButton = document.getElementById('resend-button');
+    resendButton.addEventListener('click', async function() {
+        if (!registrationData.phone_number) {
+            alert('Session expired. Please start registration again.');
+            window.location.href = '/register/';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/register/request-verification/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    phone_number: registrationData.phone_number
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update verification_id in storage
+                registrationData.verification_id = data.verification_id;
+                sessionStorage.setItem('registration_data', JSON.stringify(registrationData));
+
+                // Show success message
+                const messageContainer = document.getElementById('message-container');
+                messageContainer.innerHTML = '<div class="text-green-600 text-sm text-center">Verification code resent!</div>';
+
+                // Clear message after 3 seconds
+                setTimeout(() => {
+                    messageContainer.innerHTML = '';
+                }, 3000);
+            } else {
+                alert(data.error || 'Failed to resend code. Please try again.');
+            }
+        } catch (error) {
+            console.error('Resend error:', error);
+            alert('An error occurred. Please try again.');
+        }
+    });
+});
+</script>
 {% endblock %}

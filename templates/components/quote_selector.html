@@ -1,7 +1,20 @@
+<!-- Quote Tooltip (positioned absolutely) -->
+<div id="quote-tooltip" class="hidden fixed z-50 bg-gray-800 text-white px-3 py-2 rounded shadow-lg text-sm">
+    <button id="quote-button" class="flex items-center gap-1 hover:text-blue-300">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+        </svg>
+        Quote
+    </button>
+</div>
+
 <div class="bg-white border border-gray-200 rounded-lg p-4">
     <label class="block text-sm font-medium text-gray-700 mb-2">
-        Select text to quote (optional)
+        Quote a response (optional)
     </label>
+    <p class="text-xs text-gray-500 mb-3">
+        💡 Tip: Highlight text in any response below to quickly quote it
+    </p>
     
     <select 
         name="quoted_response_id" 
@@ -11,30 +24,34 @@
     >
         <option value="">-- Select a response to quote --</option>
         {% for response in responses %}
-        <option value="{{ response.id }}" data-content="{{ response.content|escapejs }}">
-            Response #{{ response.response_number }} by {{ response.user.username }} ({{ response.character_count }} chars)
+        <option value="{{ response.id }}" data-content="{{ response.content|escapejs }}" data-author="{{ response.user.username }}" data-number="{{ forloop.counter }}">
+            Response #{{ forloop.counter }} by {{ response.user.username }} ({{ response.character_count }} chars)
         </option>
         {% endfor %}
     </select>
     
     <div id="quote-preview" class="hidden">
         <label class="block text-sm font-medium text-gray-700 mb-2">
-            Select specific text to quote (or leave blank to quote entire response)
+            Selected text to quote
         </label>
         <textarea 
             name="quote_text" 
             id="quote-text-area"
             rows="3" 
-            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-            placeholder="Leave blank to quote entire response, or paste/type specific text here..."
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+            placeholder="Highlight text in a response to quote it..."
         ></textarea>
+        <input type="hidden" name="quote_response_id" id="quote-response-id">
         <p class="text-xs text-gray-500 mt-1">
-            Tip: Copy and paste the specific portion you want to reference
+            This will be inserted as a blockquote in your response
         </p>
     </div>
 </div>
 
 <script>
+// Quote selection functionality
+let selectedQuoteData = null;
+
 function showQuotePreview() {
     const selector = document.getElementById('quote-selector');
     const preview = document.getElementById('quote-preview');
@@ -49,6 +66,110 @@ function showQuotePreview() {
         preview.classList.add('hidden');
         textArea.value = '';
     }
+}
+
+// Handle text selection in responses
+document.addEventListener('mouseup', function(e) {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    // Only show tooltip if text is selected and we're in a response card
+    if (selectedText.length > 0 && selectedText.length < 500) {
+        const responseCard = selection.anchorNode?.parentElement?.closest('.response-content');
+        if (responseCard) {
+            showQuoteTooltip(e.pageX, e.pageY, selectedText, responseCard);
+        }
+    } else {
+        hideQuoteTooltip();
+    }
+});
+
+function showQuoteTooltip(x, y, selectedText, responseCard) {
+    const tooltip = document.getElementById('quote-tooltip');
+    const responseId = responseCard.dataset.responseId;
+    const responseAuthor = responseCard.dataset.author;
+    const responseNumber = responseCard.dataset.number;
+    
+    // Position tooltip near selection
+    tooltip.style.left = (x + 10) + 'px';
+    tooltip.style.top = (y - 40) + 'px';
+    tooltip.classList.remove('hidden');
+    
+    // Store quote data
+    selectedQuoteData = {
+        text: selectedText,
+        responseId: responseId,
+        author: responseAuthor,
+        number: responseNumber
+    };
+    
+    // Handle quote button click
+    const quoteButton = document.getElementById('quote-button');
+    quoteButton.onclick = function() {
+        insertQuote(selectedQuoteData);
+        hideQuoteTooltip();
+    };
+}
+
+function hideQuoteTooltip() {
+    const tooltip = document.getElementById('quote-tooltip');
+    tooltip.classList.add('hidden');
+}
+
+async function insertQuote(quoteData) {
+    const textArea = document.getElementById('quote-text-area');
+    const responseIdInput = document.getElementById('quote-response-id');
+    const selector = document.getElementById('quote-selector');
+    const preview = document.getElementById('quote-preview');
+    
+    try {
+        // Call API to get formatted quote markdown
+        const response = await fetch(`/api/responses/${quoteData.responseId}/quote/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                quoted_text: quoteData.text
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to create quote');
+        }
+        
+        const data = await response.json();
+        
+        // Insert quote into text area
+        textArea.value = quoteData.text;
+        responseIdInput.value = quoteData.responseId;
+        
+        // Update selector to match
+        selector.value = quoteData.responseId;
+        preview.classList.remove('hidden');
+        
+        // Scroll to the quote area
+        preview.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Highlight the preview briefly
+        preview.classList.add('ring-2', 'ring-blue-500');
+        setTimeout(() => {
+            preview.classList.remove('ring-2', 'ring-blue-500');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error creating quote:', error);
+        // Fallback: just insert the text
+        textArea.value = quoteData.text;
+        responseIdInput.value = quoteData.responseId;
+        selector.value = quoteData.responseId;
+        preview.classList.remove('hidden');
+    }
+}
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
 
 // Pre-select quote from localStorage (if navigated from response card)
@@ -79,5 +200,13 @@ window.addEventListener('DOMContentLoaded', function() {
             console.error('Error loading quote:', e);
         }
     }
+    
+    // Hide tooltip on click outside
+    document.addEventListener('click', function(e) {
+        const tooltip = document.getElementById('quote-tooltip');
+        if (!tooltip.contains(e.target)) {
+            hideQuoteTooltip();
+        }
+    });
 });
 </script>

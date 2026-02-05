@@ -88,8 +88,9 @@ class TestInviteService:
         assert invite.status == "sent"
         assert len(invite_code) == 8
 
-        # Check code is stored
-        assert invite_code in user.behavioral_flags.get("invite_codes", {})
+        # Check code is stored in invite model
+        assert invite.code == invite_code
+        assert invite.code is not None
 
     def test_send_platform_invite_consumption_sent(
         self, user_factory, response_factory

@@ -15,7 +15,6 @@ from core.models import (
     Round,
     Response,
     ResponseEdit,
-    DraftResponse,
     PlatformConfig,
     DiscussionParticipant,
 )
@@ -362,8 +361,8 @@ class ResponseService:
 
     @staticmethod
     def save_draft(
-        user: User, round: Round, content: str, reason: str
-    ) -> DraftResponse:
+        user: User, round: Round, content: str, reason: str = None
+    ) -> Response:
         """
         Save a draft response.
 
@@ -376,17 +375,24 @@ class ResponseService:
             user: User saving draft
             round: Round for the draft
             content: Draft content
-            reason: Reason for saving ('mrp_expired', 'user_saved', 'round_ended')
+            reason: Reason for saving ('mrp_expired', 'user_saved', 'round_ended', 'auto_save', 'round_ending_soon')
 
         Returns:
-            Created DraftResponse instance
+            Created Response instance with is_draft=True
         """
-        draft = DraftResponse.objects.create(
-            discussion=round.discussion,
+        # Delete any existing draft for this user/round to allow overwrites
+        Response.objects.filter(
+            user=user,
+            round=round,
+            is_draft=True
+        ).delete()
+
+        draft = Response.objects.create(
             round=round,
             user=user,
             content=content,
-            saved_reason=reason,
+            character_count=len(content),
+            is_draft=True,
         )
         return draft
 

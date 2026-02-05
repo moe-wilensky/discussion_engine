@@ -288,7 +288,11 @@ CELERY_BEAT_SCHEDULE = {
     },
     "broadcast-mrp-timers": {
         "task": "core.tasks.broadcast_mrp_timers",
-        "schedule": timedelta(minutes=1),  # Broadcast every minute
+        "schedule": timedelta(seconds=5),  # Broadcast every 5 seconds (efficient equivalent to 1s)
+    },
+    "close-voting-windows": {
+        "task": "core.tasks.close_voting_windows",
+        "schedule": timedelta(minutes=1),  # Check and close expired voting windows
     },
     "check-phase-1-timeouts": {
         "task": "core.tasks.check_phase_1_timeouts",

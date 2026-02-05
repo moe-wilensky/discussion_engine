@@ -145,6 +145,109 @@
     </div>
 </div>
 
+<!-- Ban User Modal -->
+<div id="ban-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <h2 class="text-2xl font-bold mb-6 text-red-600">Ban User</h2>
+
+            <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <p class="text-sm text-red-800">
+                    <strong>⚠️ Warning:</strong> Banning a user will immediately log them out and prevent them from accessing the platform.
+                    This action should only be used for serious violations.
+                </p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">User:</label>
+                <div class="font-semibold text-lg" id="ban-username"></div>
+            </div>
+
+            <form id="ban-form">
+                <input type="hidden" id="ban-user-id">
+
+                <!-- Ban Type -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">Ban Type:</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" name="ban_type" value="temporary" checked class="mr-2" onchange="toggleDurationField()">
+                            <span>Temporary Ban</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="ban_type" value="permanent" class="mr-2" onchange="toggleDurationField()">
+                            <span class="text-red-600 font-medium">Permanent Ban</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Duration (for temporary bans) -->
+                <div class="mb-6" id="duration-field">
+                    <label for="ban-duration" class="block text-sm font-medium mb-2">Ban Duration (days):</label>
+                    <input
+                        type="number"
+                        id="ban-duration"
+                        min="1"
+                        max="365"
+                        value="7"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">
+                        Common durations: 7 days (1 week), 14 days (2 weeks), 30 days (1 month), 90 days (3 months)
+                    </p>
+                </div>
+
+                <!-- Ban Reason -->
+                <div class="mb-6">
+                    <label for="ban-reason" class="block text-sm font-medium mb-2">Ban Reason: <span class="text-red-600">*</span></label>
+                    <select
+                        id="ban-reason-select"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-2"
+                    >
+                        <option value="">Select a reason...</option>
+                        <option value="spam">Spam/Commercial Activity</option>
+                        <option value="harassment">Harassment or Abusive Behavior</option>
+                        <option value="hate_speech">Hate Speech</option>
+                        <option value="multi_account">Multiple Account Abuse</option>
+                        <option value="impersonation">Impersonation</option>
+                        <option value="doxxing">Doxxing/Privacy Violation</option>
+                        <option value="vote_manipulation">Vote Manipulation</option>
+                        <option value="other">Other (specify below)</option>
+                    </select>
+
+                    <textarea
+                        id="ban-reason"
+                        rows="4"
+                        placeholder="Provide additional details about the ban reason..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                    ></textarea>
+                    <p class="text-xs text-gray-500 mt-1">
+                        This reason will be recorded in the audit log and may be shown to the user.
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3 justify-end">
+                    <button
+                        type="button"
+                        onclick="closeBanModal()"
+                        class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                    >
+                        Confirm Ban
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 function filterQueue(category) {
     const items = document.querySelectorAll('.queue-item');
@@ -194,16 +297,83 @@ function closeModal() {
 }
 
 function banUser(userId, username) {
-    if (confirm(`Ban user ${username}? They will be logged out and cannot access the platform.`)) {
-        fetch(`/api/admin/users/${userId}/ban/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
-                'Content-Type': 'application/json'
-            }
-        }).then(() => location.reload());
+    // Show ban modal
+    document.getElementById('ban-username').textContent = username;
+    document.getElementById('ban-user-id').value = userId;
+    document.getElementById('ban-modal').classList.remove('hidden');
+}
+
+function closeBanModal() {
+    document.getElementById('ban-modal').classList.add('hidden');
+    document.getElementById('ban-form').reset();
+}
+
+function toggleDurationField() {
+    const banType = document.querySelector('input[name="ban_type"]:checked').value;
+    const durationField = document.getElementById('duration-field');
+
+    if (banType === 'permanent') {
+        durationField.style.display = 'none';
+    } else {
+        durationField.style.display = 'block';
     }
 }
+
+// Handle ban form submission
+document.getElementById('ban-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const userId = document.getElementById('ban-user-id').value;
+    const banType = document.querySelector('input[name="ban_type"]:checked').value;
+    const duration = banType === 'temporary' ? document.getElementById('ban-duration').value : null;
+    const reasonSelect = document.getElementById('ban-reason-select').value;
+    const reasonText = document.getElementById('ban-reason').value.trim();
+
+    if (!reasonText) {
+        alert('Please provide a ban reason.');
+        return;
+    }
+
+    // Combine select reason and custom text
+    const fullReason = reasonSelect ? `[${reasonSelect}] ${reasonText}` : reasonText;
+
+    const payload = {
+        reason: fullReason,
+        duration_days: duration
+    };
+
+    // Show loading state
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Banning...';
+
+    fetch(`/api/admin/users/${userId}/ban/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.banned) {
+            alert(`User banned successfully. ${data.permanent ? 'Permanent ban' : 'Temporary ban'}. The page will now reload.`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to ban user'));
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error banning user:', error);
+        alert('Failed to ban user. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    });
+});
 
 function unbanUser(userId, username) {
     if (confirm(`Unban user ${username}?`)) {

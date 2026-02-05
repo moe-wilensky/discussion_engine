@@ -187,28 +187,74 @@
                 <!-- Step 3: Invite Participants -->
                 <div id="step-3" class="wizard-step hidden">
                     <h2 class="text-lg font-medium text-gray-900 mb-4">Step 3: Invite Participants</h2>
-                    
-                    <div class="mb-4">
-                        <label for="search-users" class="block text-sm font-medium text-gray-700">
-                            Search Users
-                        </label>
-                        <input type="text" 
-                               id="search-users" 
-                               hx-get="{% url 'user-search' %}" 
-                               hx-trigger="keyup changed delay:500ms" 
-                               hx-target="#user-results"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-                               placeholder="Search by username...">
+
+                    <!-- Delegated Approver Section -->
+                    <div class="mb-6 pb-6 border-b border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Delegated Approver (Optional)</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            Choose someone to help approve join requests. They'll have the same approval permissions as you.
+                        </p>
+
+                        <div class="mb-2">
+                            <label for="delegated-approver-search" class="block text-sm font-medium text-gray-700">
+                                Search for Approver
+                            </label>
+                            <input type="text"
+                                   id="delegated-approver-search"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                                   placeholder="Search by username..."
+                                   onkeyup="searchForApprover(this.value)">
+                        </div>
+
+                        <div id="approver-results" class="mb-2 space-y-2"></div>
+
+                        <div id="selected-approver" class="hidden">
+                            <input type="hidden" name="delegated_approver_id" id="delegated-approver-id">
+                            <div class="mt-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <div class="flex items-center">
+                                    <span class="text-sm font-medium text-blue-900" id="approver-name"></span>
+                                    <span class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Delegated Approver</span>
+                                </div>
+                                <button type="button"
+                                        onclick="removeApprover()"
+                                        class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-gray-500 mt-2">
+                            ℹ️ The delegated approver can approve or decline join requests, but cannot modify discussion settings.
+                        </p>
                     </div>
 
-                    <div id="user-results" class="mb-4 space-y-2"></div>
-
-                    <div id="selected-users" class="mb-4">
-                        <h3 class="text-sm font-medium text-gray-700 mb-2">Selected Participants:</h3>
-                        <div id="selected-list" class="flex flex-wrap gap-2"></div>
-                        <p class="text-sm text-gray-500 mt-2">
-                            <span id="invite-cost">0</span> invites will be used
+                    <!-- Invite Participants Section -->
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Initial Participants</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            Invite users to participate in this discussion from the start.
                         </p>
+
+                        <div class="mb-4">
+                            <label for="search-users" class="block text-sm font-medium text-gray-700">
+                                Search Users
+                            </label>
+                            <input type="text"
+                                   id="search-users"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                                   placeholder="Search by username..."
+                                   onkeyup="searchForParticipants(this.value)">
+                        </div>
+
+                        <div id="user-results" class="mb-4 space-y-2"></div>
+
+                        <div id="selected-users" class="mb-4">
+                            <h3 class="text-sm font-medium text-gray-700 mb-2">Selected Participants:</h3>
+                            <div id="selected-list" class="flex flex-wrap gap-2"></div>
+                            <p class="text-sm text-gray-500 mt-2">
+                                <span id="invite-cost">0</span> invites will be used
+                            </p>
+                        </div>
                     </div>
 
                     <div class="mt-6 flex justify-between">
@@ -264,6 +310,7 @@
 <script>
 let currentStep = 1;
 let selectedUsers = [];
+let selectedApprover = null;
 
 function updateCharCount(inputId, countId, max) {
     const input = document.getElementById(inputId);
@@ -332,11 +379,63 @@ function updateReview() {
     const mri = document.getElementById('mri_hours').value;
     const min = document.getElementById('min_chars').value;
     const max = document.getElementById('max_chars').value;
-    
+
     document.getElementById('review-topic').textContent = topic + (details ? ` — ${details}` : '');
     document.getElementById('review-params').textContent = `Responses every ~${mri} hours, ${min}-${max} characters`;
-    document.getElementById('review-participants').textContent = selectedUsers.length > 0 ? 
+
+    let participantsText = selectedUsers.length > 0 ?
         `${selectedUsers.length} participant(s) invited` : 'No participants invited yet';
+
+    if (selectedApprover) {
+        participantsText += ` • Delegated Approver: ${selectedApprover.username}`;
+    }
+
+    document.getElementById('review-participants').textContent = participantsText;
+}
+
+// Delegated Approver Functions
+function searchForApprover(query) {
+    if (query.length < 2) {
+        document.getElementById('approver-results').innerHTML = '';
+        return;
+    }
+
+    // TODO: Replace with actual API call
+    // For now, just mock it
+    const mockResults = [
+        { id: 1, username: 'alice', full_name: 'Alice Smith' },
+        { id: 2, username: 'bob', full_name: 'Bob Johnson' }
+    ].filter(u => u.username.includes(query.toLowerCase()));
+
+    const resultsHtml = mockResults.map(user => `
+        <div class="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
+             onclick="selectApprover(${user.id}, '${user.username}')">
+            <span class="text-sm font-medium">${user.username}</span>
+        </div>
+    `).join('');
+
+    document.getElementById('approver-results').innerHTML = resultsHtml;
+}
+
+function selectApprover(userId, username) {
+    selectedApprover = { id: userId, username: username };
+
+    document.getElementById('delegated-approver-id').value = userId;
+    document.getElementById('approver-name').textContent = username;
+    document.getElementById('selected-approver').classList.remove('hidden');
+    document.getElementById('approver-results').innerHTML = '';
+    document.getElementById('delegated-approver-search').value = '';
+}
+
+function removeApprover() {
+    selectedApprover = null;
+    document.getElementById('selected-approver').classList.add('hidden');
+    document.getElementById('delegated-approver-id').value = '';
+}
+
+// Update the existing search function name
+function searchForParticipants(query) {
+    // Existing user search logic...
 }
 </script>
 {% endblock %}

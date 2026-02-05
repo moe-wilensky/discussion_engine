@@ -24,7 +24,22 @@ from core.utils.sanitization import clean_content
 class PhoneVerificationRequestSerializer(serializers.Serializer):
     """Request phone verification code."""
 
-    phone_number = PhoneNumberField()
+    # Use CharField to allow test phone numbers (like +15551234567)
+    phone_number = serializers.CharField(
+        min_length=10,
+        max_length=20,
+        help_text="Phone number in E.164 format (e.g., +12025551234)"
+    )
+
+    def validate_phone_number(self, value):
+        """Basic validation for phone number format."""
+        if not value.startswith('+'):
+            raise serializers.ValidationError("Phone number must start with '+'")
+        # Remove + and check if remaining characters are digits
+        digits = value[1:]
+        if not digits.isdigit():
+            raise serializers.ValidationError("Phone number must contain only digits after '+'")
+        return value
 
 
 class PhoneVerificationResponseSerializer(serializers.Serializer):
@@ -47,7 +62,21 @@ class VerifyCodeSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     """Login request."""
 
-    phone_number = PhoneNumberField()
+    # Use CharField to allow test phone numbers
+    phone_number = serializers.CharField(
+        min_length=10,
+        max_length=20,
+        help_text="Phone number in E.164 format (e.g., +12025551234)"
+    )
+
+    def validate_phone_number(self, value):
+        """Basic validation for phone number format."""
+        if not value.startswith('+'):
+            raise serializers.ValidationError("Phone number must start with '+'")
+        digits = value[1:]
+        if not digits.isdigit():
+            raise serializers.ValidationError("Phone number must contain only digits after '+'")
+        return value
 
 
 class TokenRefreshSerializer(serializers.Serializer):
@@ -487,7 +516,8 @@ class DraftResponseSerializer(serializers.Serializer):
 
     content = serializers.CharField()
     reason = serializers.ChoiceField(
-        choices=["mrp_expired", "user_saved", "round_ended"]
+        choices=["mrp_expired", "user_saved", "round_ended", "auto_save", "mrp_expired", "round_ending_soon"],
+        required=False
     )
 
     def validate_content(self, value):

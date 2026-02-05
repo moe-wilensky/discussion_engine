@@ -35,6 +35,7 @@ urlpatterns = [
     # Template-based views
     # Authentication
     path("register/", views.register_view, name="register"),
+    path("auth/register/", views.register_page, name="register-page"),  # For E2E tests
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("verify-phone/", views.verify_phone_view, name="verify-phone"),
@@ -88,10 +89,11 @@ urlpatterns = [
         name="mark-notification-read",
     ),
     path("api/notifications/mark-all-read/", views.mark_all_read, name="mark-all-read"),
+    # Notification preferences HTML view
     path(
-        "api/notifications/preferences/",
+        "notifications/preferences/",
         views.notification_preferences_view,
-        name="notification-preferences",
+        name="notification-preferences-view",
     ),
 ]
 

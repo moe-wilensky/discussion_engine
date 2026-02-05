@@ -49,6 +49,9 @@ class User(AbstractUser):
     # Phone verification
     phone_verified = models.BooleanField(default=False)
 
+    # Onboarding
+    tutorial_completed = models.BooleanField(default=False)
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -486,7 +489,7 @@ class Round(models.Model):
     )
     round_number = models.IntegerField()
 
-    start_time = models.DateTimeField(auto_now_add=True)
+    start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
 
     final_mrp_minutes = models.FloatField(null=True, blank=True)
@@ -604,6 +607,7 @@ class Response(models.Model):
 
     time_since_previous_minutes = models.FloatField(null=True, blank=True)
     is_locked = models.BooleanField(default=False)
+    is_draft = models.BooleanField(default=False)
 
     class Meta:
         db_table = "responses"
@@ -816,13 +820,57 @@ class Invite(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
     first_participation_at = models.DateTimeField(null=True, blank=True)
 
+    code = models.CharField(
+        max_length=8,
+        unique=True,
+        db_index=True,
+        blank=True,
+        null=True,
+        help_text="Unique 8-character invite code (auto-generated for platform invites)"
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Optional expiration timestamp for invite code"
+    )
+
     class Meta:
         db_table = "invites"
         indexes = [
             models.Index(fields=["inviter", "status"]),
             models.Index(fields=["invitee", "status"]),
             models.Index(fields=["discussion"]),
+            models.Index(fields=["code"]),
         ]
+
+    @classmethod
+    def generate_code(cls) -> str:
+        """
+        Generate unique 8-character invite code.
+
+        Returns:
+            str: Unique uppercase alphanumeric code
+        """
+        import random
+        import string
+
+        chars = string.ascii_uppercase + string.digits
+        max_attempts = 100
+
+        for _ in range(max_attempts):
+            code = "".join(random.choices(chars, k=8))
+            if not cls.objects.filter(code=code).exists():
+                return code
+
+        # Fallback: use UUID if collision persists
+        import uuid
+        return str(uuid.uuid4()).replace("-", "")[:8].upper()
+
+    def save(self, *args, **kwargs):
+        """Auto-generate code if not provided."""
+        if not self.code and self.invite_type == "platform":
+            self.code = self.generate_code()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         invitee_name = self.invitee.username if self.invitee else "pending"

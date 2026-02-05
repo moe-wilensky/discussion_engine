@@ -367,6 +367,13 @@ def rejoin_discussion(request, discussion_id):
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    # Check if user is already active
+    if participant.role in ["initiator", "active"]:
+        return APIResponse(
+            {"error": "Already an active participant"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     # Get current round
     current_round = (
         Round.objects.filter(discussion=discussion, status="in_progress")
@@ -379,8 +386,53 @@ def rejoin_discussion(request, discussion_id):
             {"error": "No active round available"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Check if user can rejoin
+    can_rejoin, reason = ObserverService.can_rejoin(participant, current_round)
+
+    if not can_rejoin:
+        # Determine appropriate status code based on reason
+        if reason == "permanent":
+            error_message = "You are a permanent observer and cannot rejoin"
+            error_status = status.HTTP_403_FORBIDDEN
+        elif reason.startswith("wait_"):
+            # Extract minutes from reason
+            parts = reason.split("_")
+            try:
+                minutes_remaining = float(parts[1])
+                error_message = (
+                    f"You must wait {minutes_remaining:.1f} more minutes before rejoining"
+                )
+            except (ValueError, IndexError):
+                error_message = "You cannot rejoin at this time"
+            error_status = status.HTTP_403_FORBIDDEN
+        elif reason == "must_wait_for_next_round":
+            error_message = "You must wait until the next round to rejoin"
+            error_status = status.HTTP_403_FORBIDDEN
+        else:
+            error_message = f"Cannot rejoin: {reason}"
+            error_status = status.HTTP_403_FORBIDDEN
+
+        return APIResponse({"error": error_message}, status=error_status)
+
     try:
         ObserverService.rejoin_as_active(participant)
+
+        # Send WebSocket notification to all participants
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f"discussion_{discussion.id}",
+                {
+                    "type": "new_participant",
+                    "user_id": request.user.id,
+                    "username": request.user.username,
+                    "role": "active",
+                    "rejoined": True,
+                },
+            )
 
         return APIResponse(
             {

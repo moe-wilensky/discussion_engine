@@ -236,6 +236,49 @@ def get_platform_config():
     return PlatformConfig.load()
 
 
+# Invite Operations
+@sync_to_async(thread_sensitive=True)
+def create_invite(inviter, invite_type="platform", status="sent", **kwargs):
+    """Create an invite asynchronously."""
+    defaults = {
+        "code": Invite.generate_code(),
+    }
+    defaults.update(kwargs)
+
+    return Invite.objects.create(
+        inviter=inviter,
+        invite_type=invite_type,
+        status=status,
+        **defaults
+    )
+
+
+@sync_to_async(thread_sensitive=True)
+def get_invite_by_code(code):
+    """Get invite by code."""
+    return Invite.objects.filter(code=code).first()
+
+
+@sync_to_async(thread_sensitive=True)
+def refresh_invite(invite):
+    """Refresh invite from database."""
+    invite.refresh_from_db()
+    return invite
+
+
+@sync_to_async(thread_sensitive=True)
+def get_user_by_phone(phone_number):
+    """Get user by phone number."""
+    return User.objects.filter(phone_number=phone_number).first()
+
+
+@sync_to_async(thread_sensitive=True)
+def refresh_user(user):
+    """Refresh user from database."""
+    user.refresh_from_db()
+    return user
+
+
 # Generic Query Operations
 @sync_to_async(thread_sensitive=True)
 def exists(queryset):

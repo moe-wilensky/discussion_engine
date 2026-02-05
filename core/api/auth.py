@@ -8,13 +8,14 @@ import logging
 from datetime import timedelta
 
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db import transaction
+from django.contrib.auth import login as django_login
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django_ratelimit.decorators import ratelimit
 from django_ratelimit.exceptions import Ratelimited
@@ -44,6 +45,7 @@ logger = logging.getLogger(__name__)
 )
 @ratelimit(key='ip', rate='5/h', method='POST')
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def request_verification(request):
     """
@@ -60,7 +62,12 @@ def request_verification(request):
         )
 
     serializer = PhoneVerificationRequestSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+    if not serializer.is_valid():
+        logger.error(f"Phone verification request validation failed: {serializer.errors}")
+        return Response(
+            {"error": f"Validation failed: {serializer.errors}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     phone_number = str(serializer.validated_data["phone_number"])
 
@@ -100,6 +107,7 @@ def request_verification(request):
 )
 @ratelimit(key='ip', rate='10/h', method='POST')
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def verify_and_register(request):
     """
@@ -123,6 +131,8 @@ def verify_and_register(request):
     invite_code = serializer.validated_data.get("invite_code", "")
     username = serializer.validated_data["username"]
 
+    logger.info(f"Registration attempt - username: {username}, invite_code: '{invite_code}'")
+
     # Verify the code
     is_valid, message, phone_number = PhoneVerificationService.verify_code(
         verification_id, code
@@ -131,21 +141,11 @@ def verify_and_register(request):
     if not is_valid:
         return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Handle invite code (if provided)
-    invite = None
-    if invite_code:
-        invite = InviteService.get_invite_by_code(invite_code)
-        if not invite or invite.status != "sent" or invite.invite_type != "platform":
-            return Response(
-                {"error": "Invalid or expired invite code"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
     # Create user
     try:
         with transaction.atomic():
             user = User.objects.create_user(
-                username=username, phone_number=phone_number
+                username=username, phone_number=phone_number, phone_verified=True
             )
 
             # Create notification preferences for new user
@@ -153,45 +153,73 @@ def verify_and_register(request):
 
             NotificationService.create_notification_preferences(user)
 
-            # Accept invite if provided
-            if invite:
-                InviteService.accept_invite(invite, user)
+            # Consume invite code if provided (validates + accepts atomically)
+            if invite_code:
+                try:
+                    logger.info(f"Consuming invite code: {invite_code}")
+                    InviteService.consume_code(invite_code, user)
+                    logger.info(f"Successfully consumed invite code")
+                except ValidationError as e:
+                    logger.error(f"Failed to consume invite: {e}")
+                    # Re-raise to trigger transaction rollback
+                    raise
             else:
                 # No invite - give starting allocation
-                config = PlatformConfig.objects.get(pk=1)
+                config = PlatformConfig.load()
                 user.platform_invites_acquired = config.new_user_platform_invites
                 user.platform_invites_banked = config.new_user_platform_invites
                 user.discussion_invites_acquired = config.new_user_discussion_invites
                 user.discussion_invites_banked = config.new_user_discussion_invites
                 user.save()
 
+            # Log user in via Django session (for template-based views)
+            try:
+                django_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                logger.info(f"User {username} logged in via session")
+            except Exception as e:
+                # Session login failed, but continue (JWT tokens will work)
+                logger.warning(f"Failed to login user via session: {e}")
+
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
 
             # Get invite allocation info
-            config = PlatformConfig.objects.get(pk=1)
+            config = PlatformConfig.load()
             total_responses = user.responses.count()
             responses_needed = max(
                 0, config.responses_to_unlock_invites - total_responses
             )
 
-            return Response(
-                {
-                    "user_id": str(user.id),
-                    "username": user.username,
-                    "tokens": {
-                        "access": str(refresh.access_token),
-                        "refresh": str(refresh),
-                    },
-                    "invite_allocation": {
-                        "platform_invites": user.platform_invites_banked,
-                        "discussion_invites": user.discussion_invites_banked,
-                        "responses_needed_to_unlock": responses_needed,
-                    },
+            logger.info(f"Registration successful - returning 201 for {username}")
+            response_data = {
+                "user_id": str(user.id),
+                "username": user.username,
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
                 },
-                status=status.HTTP_201_CREATED,
-            )
+                "invite_allocation": {
+                    "platform_invites": user.platform_invites_banked,
+                    "discussion_invites": user.discussion_invites_banked,
+                    "responses_needed_to_unlock": responses_needed,
+                },
+            }
+            logger.info(f"Response data keys: {list(response_data.keys())}")
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
+    except ValidationError as e:
+        logger.exception(f"Validation error during registration: {str(e)}")
+        # Extract error message from ValidationError
+        if hasattr(e, 'message'):
+            error_msg = str(e.message)
+        elif hasattr(e, 'messages') and e.messages:
+            error_msg = str(e.messages[0])
+        else:
+            error_msg = str(e)
+        return Response(
+            {"error": error_msg},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     except Exception as e:
         logger.exception(f"Error during user registration: {e}")
         return Response(
@@ -211,6 +239,7 @@ def verify_and_register(request):
 )
 @ratelimit(key='ip', rate='10/h', method='POST')
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def login_request(request):
     """
@@ -295,6 +324,7 @@ def login_request(request):
     description="Verify login code and get tokens",
 )
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def login_verify(request):
     """

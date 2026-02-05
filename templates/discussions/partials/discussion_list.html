@@ -1,0 +1,13 @@
+{% load static %}
+
+<!-- Discussion List Partial for HTMX Updates -->
+{% for discussion in discussions %}
+    {% include "components/discussion_card.html" with discussion=discussion %}
+{% empty %}
+    <div class="text-center py-12 bg-gray-50 rounded-lg">
+        <p class="text-gray-500 text-lg">No discussions found{% if search_query %} for "{{ search_query }}"{% endif %}.</p>
+        <a href="{% url 'discussion-create' %}" class="mt-4 inline-block text-blue-600 hover:text-blue-800">
+            Create your first discussion &rarr;
+        </a>
+    </div>
+{% endfor %}

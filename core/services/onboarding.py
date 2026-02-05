@@ -146,6 +146,9 @@ class OnboardingService:
         Args:
             user: User who completed tutorial
         """
+        user.tutorial_completed = True
+        
+        # Also store in behavioral_flags for backwards compatibility
         if not isinstance(user.behavioral_flags, dict):
             user.behavioral_flags = {}
 
@@ -164,7 +167,4 @@ class OnboardingService:
         Returns:
             True if tutorial completed
         """
-        if not isinstance(user.behavioral_flags, dict):
-            return False
-
-        return user.behavioral_flags.get("tutorial_completed", False)
+        return user.tutorial_completed

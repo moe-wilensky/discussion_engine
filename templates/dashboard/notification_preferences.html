@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Notification Preferences{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{% url 'notifications' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Notifications
+        </a>
+    </div>
+
+    <h1 class="text-3xl font-bold mb-2">Notification Preferences</h1>
+    <p class="text-gray-600 mb-8">
+        Choose how you want to receive notifications from the Discussion Engine.
+    </p>
+
+    <form method="post" class="space-y-8">
+        {% csrf_token %}
+        
+        <!-- Discussion Notifications -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+                </svg>
+                Discussion Activity
+            </h2>
+            
+            <div class="space-y-4">
+                {% for pref in discussion_prefs %}
+                <div class="border-b border-gray-200 pb-4 last:border-0">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <label class="font-medium text-gray-900">{{ pref.label }}</label>
+                            {% if pref.is_critical %}
+                            <span class="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Required</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-6 ml-4">
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_in_app" 
+                                {% if pref.delivery.in_app %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">In-App</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_email" 
+                                {% if pref.delivery.email %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Email</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_push" 
+                                {% if pref.delivery.push %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Push</span>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Social Notifications -->
+        {% if social_prefs %}
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+                Social & Invites
+            </h2>
+            
+            <div class="space-y-4">
+                {% for pref in social_prefs %}
+                <div class="border-b border-gray-200 pb-4 last:border-0">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <label class="font-medium text-gray-900">{{ pref.label }}</label>
+                            {% if pref.is_critical %}
+                            <span class="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Required</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-6 ml-4">
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_in_app" 
+                                {% if pref.delivery.in_app %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">In-App</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_email" 
+                                {% if pref.delivery.email %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Email</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_push" 
+                                {% if pref.delivery.push %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Push</span>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- System Notifications -->
+        {% if system_prefs %}
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                System Events
+            </h2>
+            
+            <div class="space-y-4">
+                {% for pref in system_prefs %}
+                <div class="border-b border-gray-200 pb-4 last:border-0">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <label class="font-medium text-gray-900">{{ pref.label }}</label>
+                            {% if pref.is_critical %}
+                            <span class="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Required</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-6 ml-4">
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_in_app" 
+                                {% if pref.delivery.in_app %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">In-App</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_email" 
+                                {% if pref.delivery.email %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Email</span>
+                        </label>
+                        
+                        <label class="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                name="pref_{{ pref.type }}_push" 
+                                {% if pref.delivery.push %}checked{% endif %}
+                                {% if pref.is_critical %}disabled{% endif %}
+                                class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            >
+                            <span class="ml-2 text-sm text-gray-700">Push</span>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Info Box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex">
+                <svg class="w-5 h-5 text-blue-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                </svg>
+                <div class="text-sm text-blue-800">
+                    <p class="font-medium mb-1">About notification delivery:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><strong>In-App:</strong> Shown in your notification center when you're online</li>
+                        <li><strong>Email:</strong> Sent to your registered email address</li>
+                        <li><strong>Push:</strong> Sent to your mobile device (requires app installation)</li>
+                    </ul>
+                    <p class="mt-2">Critical notifications (marked as "Required") will always be delivered via In-App.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'notifications' %}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                Cancel
+            </a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
+                Save Preferences
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

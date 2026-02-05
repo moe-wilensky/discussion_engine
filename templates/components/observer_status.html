@@ -1,0 +1,172 @@
+{% load static %}
+
+{# Observer Status Component - Displays countdown timer and rejoin button #}
+<div id="observer-status-card" class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-6 rounded-lg shadow-md">
+    <div class="flex items-start">
+        <div class="flex-shrink-0">
+            <svg class="h-8 w-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+        <div class="ml-4 flex-1">
+            <h3 class="text-lg font-semibold text-yellow-800 mb-2">
+                Observer Status
+            </h3>
+
+            {% if observer_reason == 'mrp_expired' %}
+            <p class="text-sm text-yellow-700 mb-3">
+                You were moved to observer status because you did not respond within the Minimum Response Period (MRP).
+            </p>
+            {% elif observer_reason == 'mutual_removal' %}
+            <p class="text-sm text-yellow-700 mb-3">
+                You were moved to observer status due to a mutual removal vote.
+            </p>
+            {% elif observer_reason == 'vote_based_removal' %}
+            <p class="text-sm text-yellow-700 mb-3">
+                You were moved to observer status by participant vote.
+            </p>
+            {% else %}
+            <p class="text-sm text-yellow-700 mb-3">
+                You are currently in observer status.
+            </p>
+            {% endif %}
+
+            {% if can_rejoin %}
+                {# User can rejoin immediately #}
+                <div class="mt-4">
+                    <button
+                        id="rejoin-btn"
+                        hx-post="/api/discussions/{{ discussion_id }}/rejoin/"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-swap="outerHTML"
+                        hx-target="#observer-status-card"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
+                    >
+                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path>
+                        </svg>
+                        Rejoin Discussion
+                    </button>
+                </div>
+            {% elif wait_period_end %}
+                {# User must wait - show countdown timer #}
+                <div class="bg-white rounded-lg p-4 border border-yellow-300">
+                    <div class="text-sm text-gray-600 mb-2">
+                        You can rejoin in:
+                    </div>
+                    <div id="observer-countdown" class="text-3xl font-bold text-yellow-600 mb-3" data-end-time="{{ wait_period_end|date:'c' }}">
+                        <span id="countdown-minutes">--</span>:<span id="countdown-seconds">--</span>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        {% if can_rejoin_in_round %}
+                            You can rejoin in Round {{ can_rejoin_in_round }} after waiting 1 MRP period.
+                        {% else %}
+                            Waiting period based on discussion rules.
+                        {% endif %}
+                    </div>
+                    <button
+                        id="rejoin-btn"
+                        disabled
+                        class="mt-3 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"
+                    >
+                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        Rejoin Locked
+                    </button>
+                </div>
+            {% elif observer_role == 'permanent_observer' %}
+                {# Permanent observer - cannot rejoin #}
+                <div class="bg-red-50 rounded-lg p-4 border border-red-300">
+                    <p class="text-sm text-red-700 font-medium">
+                        You have been permanently removed from this discussion and cannot rejoin.
+                    </p>
+                </div>
+            {% else %}
+                {# Must wait for next round #}
+                <div class="bg-white rounded-lg p-4 border border-yellow-300">
+                    <p class="text-sm text-gray-700">
+                        You must wait until the next round begins before you can rejoin.
+                    </p>
+                    {% if current_round_number %}
+                    <p class="text-xs text-gray-500 mt-2">
+                        Current round: {{ current_round_number }}
+                    </p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Observer countdown timer
+(function() {
+    const countdownElement = document.getElementById('observer-countdown');
+    if (!countdownElement) return;
+
+    const endTime = new Date(countdownElement.dataset.endTime);
+    const rejoinBtn = document.getElementById('rejoin-btn');
+    const minutesSpan = document.getElementById('countdown-minutes');
+    const secondsSpan = document.getElementById('countdown-seconds');
+
+    function updateCountdown() {
+        const now = new Date();
+        const timeRemaining = endTime - now;
+
+        if (timeRemaining <= 0) {
+            // Timer expired - enable rejoin button
+            minutesSpan.textContent = '0';
+            secondsSpan.textContent = '00';
+
+            if (rejoinBtn) {
+                rejoinBtn.disabled = false;
+                rejoinBtn.className = 'mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition cursor-pointer';
+                rejoinBtn.innerHTML = `
+                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path>
+                    </svg>
+                    Rejoin Discussion
+                `;
+                rejoinBtn.setAttribute('hx-post', `/api/discussions/{{ discussion_id }}/rejoin/`);
+                rejoinBtn.setAttribute('hx-headers', '{"X-CSRFToken": "{{ csrf_token }}"}');
+                rejoinBtn.setAttribute('hx-swap', 'outerHTML');
+                rejoinBtn.setAttribute('hx-target', '#observer-status-card');
+
+                // Re-process HTMX attributes
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(rejoinBtn);
+                }
+            }
+
+            showToast('You can now rejoin the discussion!', 'success');
+            clearInterval(countdownInterval);
+            return;
+        }
+
+        // Calculate minutes and seconds
+        const totalSeconds = Math.floor(timeRemaining / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        // Update display
+        minutesSpan.textContent = minutes;
+        secondsSpan.textContent = seconds.toString().padStart(2, '0');
+
+        // Change color based on time remaining
+        if (totalSeconds < 60) {
+            countdownElement.className = 'text-3xl font-bold text-red-600 mb-3';
+        } else if (totalSeconds < 300) {
+            countdownElement.className = 'text-3xl font-bold text-orange-600 mb-3';
+        } else {
+            countdownElement.className = 'text-3xl font-bold text-yellow-600 mb-3';
+        }
+    }
+
+    // Update immediately
+    updateCountdown();
+
+    // Update every second
+    const countdownInterval = setInterval(updateCountdown, 1000);
+})();
+</script>

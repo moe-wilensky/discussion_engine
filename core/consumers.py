@@ -339,6 +339,31 @@ class DiscussionConsumer(AsyncWebsocketConsumer):
             )
         )
 
+    async def new_participant(self, event):
+        """
+        Broadcast new participant (or rejoined observer) notification.
+
+        Event structure:
+        {
+            'type': 'new_participant',
+            'user_id': <id>,
+            'username': <string>,
+            'role': 'active',
+            'rejoined': <bool>
+        }
+        """
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "new_participant",
+                    "user_id": event["user_id"],
+                    "username": event.get("username"),
+                    "role": event.get("role", "active"),
+                    "rejoined": event.get("rejoined", False),
+                }
+            )
+        )
+
     async def next_round_started(self, event):
         """
         Broadcast next round started notification.

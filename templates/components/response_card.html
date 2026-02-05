@@ -40,7 +40,11 @@
     {% endif %}
     
     <!-- Response Content -->
-    <div class="response-content text-gray-900 whitespace-pre-wrap" data-response-id="{{ response.id }}" id="response-{{ response.id }}">{{ response.content }}</div>
+    <div class="response-content text-gray-900 whitespace-pre-wrap" 
+         data-response-id="{{ response.id }}" 
+         data-author="{{ response.user.username }}"
+         data-number="{{ response.response_number }}"
+         id="response-{{ response.id }}">{{ response.content }}</div>
     
     <!-- Actions (if user can interact) -->
     {% if can_quote %}

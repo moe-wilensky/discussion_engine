@@ -259,7 +259,7 @@ def save_draft(request, response_id):
         user=request.user,
         round=response.round,
         content=serializer.validated_data["content"],
-        reason=serializer.validated_data["reason"],
+        reason=serializer.validated_data.get("reason"),
     )
 
     return DRFResponse(
@@ -298,7 +298,7 @@ def save_draft_for_round(request, discussion_id, round_number):
         user=request.user,
         round=round_obj,
         content=serializer.validated_data["content"],
-        reason=serializer.validated_data["reason"],
+        reason=serializer.validated_data.get("reason"),
     )
 
     return DRFResponse(

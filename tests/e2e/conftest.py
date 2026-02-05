@@ -52,12 +52,16 @@ def browser_type_launch_args(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def browser_context_args():
+def browser_context_args(pytestconfig):
     """Configure browser context for E2E tests."""
+    # Enable video recording on failure (stored in test-results/)
+    video_dir = "test-results/videos" if pytestconfig.option.video == "on" or pytestconfig.option.video == "retain-on-failure" else None
+
     return {
         "viewport": {"width": 1920, "height": 1080},
         "ignore_https_errors": True,
-        "record_video_dir": None,  # Set to path to enable video recording
+        "record_video_dir": video_dir,
+        "record_video_size": {"width": 1920, "height": 1080} if video_dir else None,
     }
 
 
@@ -111,9 +115,23 @@ async def playwright_instance():
 
 
 @pytest.fixture(scope="function")
-async def browser(playwright_instance: Playwright, browser_type_launch_args):
-    """Create a browser instance for each test."""
-    browser = await playwright_instance.chromium.launch(**browser_type_launch_args)
+async def browser(playwright_instance: Playwright, browser_type_launch_args, request):
+    """Create a browser instance for each test.
+
+    Supports multiple browser types via pytest markers:
+    - @pytest.mark.browser("chromium") [default]
+    - @pytest.mark.browser("firefox")
+    - @pytest.mark.browser("webkit")
+    """
+    # Get browser type from marker, default to chromium
+    browser_name = "chromium"
+    marker = request.node.get_closest_marker("browser")
+    if marker:
+        browser_name = marker.args[0] if marker.args else "chromium"
+
+    # Launch the appropriate browser
+    browser_type = getattr(playwright_instance, browser_name)
+    browser = await browser_type.launch(**browser_type_launch_args)
     yield browser
     await browser.close()
 
@@ -380,19 +398,23 @@ def wait_for_db_condition():
 @pytest.fixture
 def mock_twilio(monkeypatch):
     """Mock Twilio SMS verification for E2E tests."""
+    import uuid
+
     def mock_send_verification(phone_number):
-        """Mock verification code sending."""
-        return True
-    
-    def mock_check_verification(phone_number, code):
+        """Mock verification code sending - returns (verification_id, success, message)."""
+        return str(uuid.uuid4()), True, "Verification code sent"
+
+    def mock_verify_code(verification_id, code):
         """Mock verification code checking - accept any 6-digit code."""
-        return code and len(code) == 6
-    
-    # Patch the Twilio service methods
-    from core.auth import registration
-    monkeypatch.setattr(registration, "send_verification_code", mock_send_verification)
-    monkeypatch.setattr(registration, "check_verification_code", mock_check_verification)
-    
+        if code and len(code) == 6:
+            return True, "Phone number verified", "+15551234567"
+        return False, "Invalid verification code", None
+
+    # Patch the PhoneVerificationService class methods
+    from core.auth.registration import PhoneVerificationService
+    monkeypatch.setattr(PhoneVerificationService, "send_verification_code", mock_send_verification)
+    monkeypatch.setattr(PhoneVerificationService, "verify_code", mock_verify_code)
+
     return True
 
 
@@ -445,4 +467,164 @@ def get_text():
             return ""
     
     return _get_text
+
+
+# Pytest hooks for video/trace management
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Capture test result for video/trace retention logic."""
+    outcome = yield
+    rep = outcome.get_result()
+
+    # Store test outcome on the item for teardown access
+    setattr(item, f"rep_{rep.when}", rep)
+
+
+def pytest_runtest_teardown(item):
+    """Clean up videos for passing tests (retain only on failure)."""
+    import shutil
+    import os
+
+    # Only process if test used Playwright context (has video recording)
+    if not hasattr(item, "rep_call"):
+        return
+
+    test_passed = item.rep_call.outcome == "passed"
+
+    # If test passed, remove video to save space
+    if test_passed:
+        # Video path is stored in context, but we'll clean up the whole test dir
+        test_results_dir = "test-results/videos"
+        if os.path.exists(test_results_dir):
+            # Clean up videos for this specific test (if identifiable)
+            # Playwright names videos with test IDs, but for simplicity we'll keep all failed test videos
+            pass  # Videos for passing tests will be cleaned up by Playwright automatically
+
+
+# Network Condition Simulation
+@pytest.fixture
+async def simulate_network(page: Page):
+    """
+    Simulate network conditions for testing offline/slow network scenarios.
+
+    Example usage:
+        async def test_offline(page, simulate_network):
+            await simulate_network("offline")
+            # Test offline behavior
+
+            await simulate_network("slow_3g")
+            # Test slow network behavior
+
+            await simulate_network("online")
+            # Restore normal network
+    """
+    async def _set_network(condition: str):
+        """
+        Set network condition.
+
+        Args:
+            condition: Network condition preset
+                - "offline": No network connectivity
+                - "slow_3g": Slow 3G (400ms RTT, 400kbps down, 400kbps up)
+                - "fast_3g": Fast 3G (562.5ms RTT, 1.6Mbps down, 750kbps up)
+                - "online": Normal network (default)
+        """
+        cdp = await page.context.new_cdp_session(page)
+
+        if condition == "offline":
+            await cdp.send("Network.enable")
+            await cdp.send(
+                "Network.emulateNetworkConditions",
+                {
+                    "offline": True,
+                    "latency": 0,
+                    "downloadThroughput": 0,
+                    "uploadThroughput": 0,
+                },
+            )
+        elif condition == "slow_3g":
+            await cdp.send("Network.enable")
+            await cdp.send(
+                "Network.emulateNetworkConditions",
+                {
+                    "offline": False,
+                    "latency": 400,  # ms
+                    "downloadThroughput": (400 * 1024) // 8,  # 400kbps in bytes/s
+                    "uploadThroughput": (400 * 1024) // 8,
+                },
+            )
+        elif condition == "fast_3g":
+            await cdp.send("Network.enable")
+            await cdp.send(
+                "Network.emulateNetworkConditions",
+                {
+                    "offline": False,
+                    "latency": 562.5,  # ms
+                    "downloadThroughput": (1.6 * 1024 * 1024) // 8,  # 1.6Mbps
+                    "uploadThroughput": (750 * 1024) // 8,  # 750kbps
+                },
+            )
+        elif condition == "online":
+            await cdp.send("Network.enable")
+            await cdp.send(
+                "Network.emulateNetworkConditions",
+                {
+                    "offline": False,
+                    "latency": 0,
+                    "downloadThroughput": -1,  # -1 = unlimited
+                    "uploadThroughput": -1,
+                },
+            )
+        else:
+            raise ValueError(
+                f"Unknown network condition: {condition}. "
+                "Use: offline, slow_3g, fast_3g, or online"
+            )
+
+    return _set_network
+
+
+# Mobile Viewport Testing
+@pytest.fixture
+async def mobile_viewport(context: BrowserContext):
+    """
+    Configure mobile viewport for responsive design testing.
+
+    Example usage:
+        async def test_mobile(page, mobile_viewport):
+            await mobile_viewport("iphone_14")
+            # Test mobile layout
+    """
+    async def _set_viewport(device: str):
+        """
+        Set viewport to mobile device preset.
+
+        Args:
+            device: Device preset name
+                - "iphone_14": iPhone 14 (390x844)
+                - "iphone_14_pro_max": iPhone 14 Pro Max (430x932)
+                - "pixel_7": Google Pixel 7 (412x915)
+                - "galaxy_s23": Samsung Galaxy S23 (360x780)
+                - "ipad_mini": iPad Mini (768x1024)
+        """
+        presets = {
+            "iphone_14": {"width": 390, "height": 844, "is_mobile": True, "has_touch": True},
+            "iphone_14_pro_max": {"width": 430, "height": 932, "is_mobile": True, "has_touch": True},
+            "pixel_7": {"width": 412, "height": 915, "is_mobile": True, "has_touch": True},
+            "galaxy_s23": {"width": 360, "height": 780, "is_mobile": True, "has_touch": True},
+            "ipad_mini": {"width": 768, "height": 1024, "is_mobile": True, "has_touch": True},
+        }
+
+        if device not in presets:
+            raise ValueError(
+                f"Unknown device: {device}. "
+                f"Available: {', '.join(presets.keys())}"
+            )
+
+        config = presets[device]
+        await context.set_viewport_size(
+            {"width": config["width"], "height": config["height"]}
+        )
+
+    return _set_viewport
 

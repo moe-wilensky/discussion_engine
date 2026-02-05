@@ -1,5 +1,11 @@
 # AI Agent Operating Protocols: Little Camp Slocan
 
+##  Direcotires to ignore 
+
+Exclude all files in the following direcotires from any full codebase reviews or other analyses
+
+1. _archive
+
 ## 0. Prime Directives
 0. **Key Consideration:** All code changes MUST improve maintainability and organization. Always remove code/content made obsolete, unnecessary or duplicate by your changes.
   best option: remvoe code thats casuing the issue

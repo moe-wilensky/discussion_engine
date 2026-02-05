@@ -7,14 +7,11 @@
 <div class="max-w-md mx-auto">
     <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <h2 class="text-center text-3xl font-bold tracking-tight text-gray-900 mb-8">
-            Create your account
+            Register
         </h2>
         
-        <form method="post" 
-              hx-post="{% url 'register' %}" 
-              hx-target="#form-container" 
-              hx-swap="outerHTML"
-              id="form-container"
+        <form method="post"
+              id="registration-form"
               class="space-y-6">
             {% csrf_token %}
             
@@ -76,21 +73,37 @@
                 <label for="password_confirm" class="block text-sm font-medium text-gray-700">
                     Confirm password
                 </label>
-                <input type="password" 
-                       name="password_confirm" 
-                       id="password_confirm" 
-                       required 
+                <input type="password"
+                       name="password_confirm"
+                       id="password_confirm"
+                       required
                        minlength="8"
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
                        aria-label="Confirm password">
             </div>
 
             <div>
-                <button type="submit" 
+                <label for="invite_code" class="block text-sm font-medium text-gray-700">
+                    Invite Code <span class="text-gray-500">(Optional)</span>
+                </label>
+                <input type="text"
+                       name="invite_code"
+                       id="invite_code"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                       aria-label="Invite code"
+                       maxlength="8"
+                       placeholder="Enter your invite code (optional)">
+                <p class="mt-1 text-sm text-gray-500">8-character code from your invitation. Leave blank if you don't have one.</p>
+            </div>
+
+            <div>
+                <button type="submit"
                         class="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                     Request Verification Code
                 </button>
             </div>
+
+            <div id="error-container" class="mt-4"></div>
         </form>
 
         <div class="mt-6">
@@ -114,4 +127,70 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registration-form');
+    const errorContainer = document.getElementById('error-container');
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        // Clear previous errors
+        errorContainer.innerHTML = '';
+
+        // Get form data
+        const formData = new FormData(form);
+        const username = formData.get('username');
+        const email = formData.get('email');
+        const phoneNumber = formData.get('phone_number');
+        const password = formData.get('password');
+        const passwordConfirm = formData.get('password_confirm');
+        const inviteCode = formData.get('invite_code');
+
+        // Basic client-side validation
+        if (password !== passwordConfirm) {
+            errorContainer.innerHTML = '<div class="text-red-600 text-sm text-center">Passwords do not match</div>';
+            return;
+        }
+
+        try {
+            // Request verification code
+            const response = await fetch('/api/auth/register/request-verification/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                body: JSON.stringify({
+                    phone_number: phoneNumber
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Store registration data in sessionStorage
+                sessionStorage.setItem('registration_data', JSON.stringify({
+                    username: username,
+                    email: email,
+                    phone_number: phoneNumber,
+                    invite_code: inviteCode,
+                    verification_id: data.verification_id
+                }));
+
+                // Redirect to verification page
+                window.location.href = '/verify-phone/';
+            } else {
+                // Show error message
+                errorContainer.innerHTML = '<div class="text-red-600 text-sm text-center">' +
+                    (data.error || 'Registration failed. Please try again.') + '</div>';
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            errorContainer.innerHTML = '<div class="text-red-600 text-sm text-center">An error occurred. Please try again.</div>';
+        }
+    });
+});
+</script>
 {% endblock %}

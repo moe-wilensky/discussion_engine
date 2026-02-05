@@ -150,16 +150,19 @@ def discussion_join_requests(request, discussion_id):
             {"error": "Discussion not found"}, status=status.HTTP_404_NOT_FOUND
         )
 
-    # Check if user is participant (has permission to view)
+    # Check if user is initiator, delegated approver, or active participant
     from core.models import DiscussionParticipant
 
-    is_participant = DiscussionParticipant.objects.filter(
-        discussion=discussion, user=request.user, role="active"
-    ).exists()
+    is_authorized = (
+        DiscussionParticipant.objects.filter(
+            discussion=discussion, user=request.user, role__in=["initiator", "active"]
+        ).exists()
+        or discussion.delegated_approver == request.user
+    )
 
-    if not is_participant:
+    if not is_authorized:
         return Response(
-            {"error": "Only participants can view join requests"},
+            {"error": "Only initiator, delegated approver, or active participants can view join requests"},
             status=status.HTTP_403_FORBIDDEN,
         )
 

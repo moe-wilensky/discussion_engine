@@ -72,6 +72,21 @@ class DiscussionWebSocket {
                 case 'voting_started':
                     this.handleVotingStarted(data);
                     break;
+                case 'voting_updated':
+                    this.handleVotingUpdated(data);
+                    break;
+                case 'voting_closed':
+                    this.handleVotingClosed(data);
+                    break;
+                case 'parameter_changed':
+                    this.handleParameterChanged(data);
+                    break;
+                case 'user_removed':
+                    this.handleUserRemoved(data);
+                    break;
+                case 'new_participant':
+                    this.handleNewParticipant(data);
+                    break;
                 case 'discussion_archived':
                     this.handleDiscussionArchived(data);
                     break;
@@ -122,22 +137,35 @@ class DiscussionWebSocket {
     }
     
     updateMRPTimer(data) {
+        console.log('MRP timer update:', data);
         const timerElement = document.getElementById('mrp-timer');
         if (timerElement) {
-            const minutes = Math.floor(data.time_remaining_seconds / 60);
-            const seconds = data.time_remaining_seconds % 60;
+            const timeRemaining = Math.max(0, data.time_remaining_seconds);
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
             timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            
+
             // Update global timer state for client-side fallback
             if (window.mrpTimerState) {
-                window.mrpTimerState.serverTimeRemaining = data.time_remaining_seconds;
+                window.mrpTimerState.serverTimeRemaining = timeRemaining;
                 window.mrpTimerState.lastUpdate = Date.now();
             }
-            
+
+            // Handle timer reaching zero
+            if (timeRemaining <= 0) {
+                console.log('MRP timer expired - triggering reload');
+                timerElement.className = 'timer-value expired';
+                timerElement.textContent = '0:00';
+                showToast('MRP has expired', 'warning');
+                // Reload page after short delay to show updated state
+                setTimeout(() => window.location.reload(), 2000);
+                return;
+            }
+
             // Change color based on time remaining
-            if (data.time_remaining_seconds < 300) { // < 5 minutes
+            if (timeRemaining < 300) { // < 5 minutes
                 timerElement.className = 'timer-value critical';
-            } else if (data.time_remaining_seconds < 600) { // < 10 minutes
+            } else if (timeRemaining < 600) { // < 10 minutes
                 timerElement.className = 'timer-value warning';
             } else {
                 timerElement.className = 'timer-value';
@@ -146,24 +174,37 @@ class DiscussionWebSocket {
     }
     
     handleNewResponse(data) {
+        console.log('New response received:', data);
         showToast(`New response from ${data.author}`, 'info');
-        
+
         // Reload response list if on discussion page
         const responseList = document.getElementById('response-list');
-        if (responseList && typeof htmx !== 'undefined') {
-            htmx.ajax('GET', `/discussions/${this.discussionId}/responses/`, {
+        if (responseList && typeof htmx !== 'undefined' && data.round_number) {
+            // Use correct API endpoint with round number
+            const apiUrl = `/api/discussions/${this.discussionId}/rounds/${data.round_number}/responses/`;
+            console.log('Reloading responses from:', apiUrl);
+            htmx.ajax('GET', apiUrl, {
                 target: '#response-list',
                 swap: 'innerHTML'
             });
         } else {
-            // Fallback: reload page
+            // Fallback: reload page if round number not available
+            console.log('Round number not available, reloading page');
             setTimeout(() => window.location.reload(), 1000);
         }
-        
+
         // Update response count
         const countElement = document.getElementById('response-count');
         if (countElement && data.response_number) {
             countElement.textContent = data.response_number;
+        }
+
+        // Update MRP timer if MRP was updated
+        if (data.mrp_updated && data.new_mrp_deadline) {
+            console.log('MRP updated:', {
+                new_mrp_minutes: data.new_mrp_minutes,
+                new_mrp_deadline: data.new_mrp_deadline
+            });
         }
     }
     
@@ -207,7 +248,91 @@ class DiscussionWebSocket {
         showToast(`Round ${data.round_number} has started!`, 'success');
         setTimeout(() => window.location.reload(), 1000);
     }
-    
+
+    handleVotingUpdated(data) {
+        console.log('Voting updated:', data);
+        const parameterName = data.parameter === 'mrl' ? 'MRL' :
+                             data.parameter === 'rtm' ? 'RTM' :
+                             data.parameter;
+        showToast(`Vote cast for ${parameterName} (${data.votes_cast} total votes)`, 'info');
+
+        // Update vote count display if element exists
+        const voteCountElement = document.getElementById(`${data.parameter}-vote-count`);
+        if (voteCountElement) {
+            voteCountElement.textContent = data.votes_cast;
+        }
+    }
+
+    handleVotingClosed(data) {
+        console.log('Voting closed:', data);
+        let message = `Voting closed for Round ${data.round_number}`;
+
+        if (data.mrl_result) {
+            message += ` | MRL: ${data.mrl_result}`;
+        }
+        if (data.rtm_result) {
+            message += ` | RTM: ${data.rtm_result}`;
+        }
+        if (data.users_removed && data.users_removed.length > 0) {
+            message += ` | ${data.users_removed.length} user(s) removed`;
+        }
+
+        showToast(message, 'warning');
+        setTimeout(() => window.location.reload(), 2000);
+    }
+
+    handleParameterChanged(data) {
+        console.log('Parameter changed:', data);
+        const parameterName = data.parameter === 'mrl' ? 'MRL' : 'RTM';
+        showToast(`${parameterName} changed from ${data.old_value} to ${data.new_value}`, 'info');
+
+        // Update parameter display if element exists
+        const paramElement = document.getElementById(`${data.parameter}-value`);
+        if (paramElement) {
+            paramElement.textContent = data.new_value;
+            // Add animation to highlight the change
+            paramElement.classList.add('parameter-updated');
+            setTimeout(() => paramElement.classList.remove('parameter-updated'), 2000);
+        }
+    }
+
+    handleUserRemoved(data) {
+        console.log('User removed:', data);
+        const username = data.username || 'A user';
+        const reason = data.reason === 'vote_based_removal' ? 'by vote' : data.reason;
+        showToast(`${username} was removed from the discussion (${reason})`, 'warning');
+
+        // If the current user was removed, reload to show observer UI
+        const currentUsername = document.body.dataset.username;
+        if (currentUsername === data.username) {
+            showToast('You have been moved to observer status', 'warning');
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            // Reload to update participant list
+            setTimeout(() => window.location.reload(), 2000);
+        }
+    }
+
+    handleNewParticipant(data) {
+        console.log('New participant:', data);
+        const username = data.username || 'A user';
+        const message = data.rejoined ?
+            `${username} has rejoined the discussion` :
+            `${username} joined the discussion`;
+
+        showToast(message, 'info');
+
+        // If the current user rejoined, reload to show active UI
+        const currentUsername = document.body.dataset.username;
+        if (currentUsername === data.username && data.rejoined) {
+            showToast('You have successfully rejoined the discussion!', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            // Reload to update participant list
+            setTimeout(() => window.location.reload(), 2000);
+        }
+    }
+
     disconnect() {
         if (this.ws) {
             this.ws.close();
