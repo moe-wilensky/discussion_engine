@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: discussion_engine
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -50,7 +50,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
       - DATABASE_NAME=discussion_engine
       - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - REDIS_URL=redis://redis:6379/0
@@ -74,7 +74,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
       - DATABASE_NAME=discussion_engine
       - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - REDIS_URL=redis://redis:6379/0
@@ -94,7 +94,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
       - DATABASE_NAME=discussion_engine
       - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - REDIS_URL=redis://redis:6379/0
@@ -116,7 +116,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this-in-production}
       - DATABASE_NAME=discussion_engine
       - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${DB_PASSWORD:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - REDIS_URL=redis://redis:6379/2

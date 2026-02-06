@@ -104,57 +104,8 @@ def password_reset_view(request):
 
 @login_required
 def dashboard_view(request):
-    """User dashboard with overview of activities."""
-    user = request.user
-
-    # Get active discussions where user is a participant
-    active_participations = DiscussionParticipant.objects.filter(
-        user=user, role__in=["active", "initiator"]
-    ).select_related("discussion")
-
-    active_discussions = [
-        p.discussion for p in active_participations if p.discussion.status == "active"
-    ]
-
-    # Get pending invites
-    pending_invites = Invite.objects.filter(
-        invitee=user, status="pending"
-    ).select_related("inviter", "discussion")[:5]
-
-    # Get recent notifications
-    recent_notifications = NotificationLog.objects.filter(user=user).order_by(
-        "-created_at"
-    )[:5]
-
-    # Calculate stats
-    stats = {
-        "active_discussions": len(active_discussions),
-        "responses_posted": Response.objects.filter(user=user).count(),
-        "pending_invites": pending_invites.count(),
-        "unread_notifications": NotificationLog.objects.filter(
-            user=user, read_at__isnull=True
-        ).count(),
-    }
-
-    # User stats
-    user_stats = {
-        "total_discussions": DiscussionParticipant.objects.filter(user=user).count(),
-        "total_responses": Response.objects.filter(user=user).count(),
-        "participation_count": DiscussionParticipant.objects.filter(
-            user=user, role__in=["initiator", "active"]
-        ).count(),
-        "votes_cast": 0,  # TODO: Add voting model query when available
-    }
-
-    context = {
-        "stats": stats,
-        "user_stats": user_stats,
-        "active_discussions": active_discussions,
-        "pending_invites": pending_invites,
-        "recent_notifications": recent_notifications,
-    }
-
-    return render(request, "dashboard/home.html", context)
+    """User dashboard with invite economy and discussion state cards."""
+    return dashboard_new_view(request)
 
 
 @login_required
@@ -245,40 +196,8 @@ def user_settings_view(request):
 
 @login_required
 def discussion_create_view(request):
-    """Discussion creation wizard."""
-    if request.method == "POST":
-        try:
-            # Get form data - field names match create.html form
-            headline = request.POST.get("topic", "").strip()
-            details = request.POST.get("details", "").strip()
-
-            # Convert hours to minutes for MRM
-            mri_hours = int(request.POST.get("mri_hours", 24))
-            mrm = mri_hours * 60
-
-            rtm = 1.0  # Default response time multiplier
-            mrl = int(request.POST.get("max_chars", 2000))
-
-            # Create discussion using service
-            discussion = DiscussionService.create_discussion(
-                initiator=request.user,
-                headline=headline,
-                details=details,
-                mrm=mrm,
-                rtm=rtm,
-                mrl=mrl,
-                initial_invites=[],
-            )
-
-            messages.success(request, "Discussion created successfully!")
-            return redirect("discussion-detail", discussion_id=discussion.id)
-
-        except ValidationError as e:
-            messages.error(request, str(e))
-        except Exception as e:
-            messages.error(request, f"Error creating discussion: {str(e)}")
-
-    return render(request, "discussions/create.html")
+    """Redirect to discussion creation wizard."""
+    return redirect("discussion-create-wizard")
 
 
 @login_required
@@ -327,130 +246,30 @@ def discussion_list_view(request):
 
 @login_required
 def discussion_detail_view(request, discussion_id):
-    """Discussion detail view with responses."""
-    from core.models import JoinRequest
-    
+    """Route to appropriate view based on participant role and discussion state."""
     discussion = get_object_or_404(Discussion, id=discussion_id)
 
-    # Check if user is a participant
-    try:
-        participant = DiscussionParticipant.objects.get(
-            discussion=discussion, user=request.user
-        )
-    except DiscussionParticipant.DoesNotExist:
-        participant = None
+    participant = DiscussionParticipant.objects.filter(
+        discussion=discussion, user=request.user
+    ).first()
 
-    # Get all responses in order
-    responses = (
-        Response.objects.filter(round__discussion=discussion)
-        .select_related("user", "round")
-        .order_by("round__round_number", "created_at")
-    )
+    # Active participants: check for voting phase first, then active view
+    if participant and participant.role in ["initiator", "active"]:
+        current_round = Round.objects.filter(
+            discussion=discussion
+        ).order_by("-round_number").first()
+        if current_round and current_round.status == "voting":
+            return redirect("discussion-voting", discussion_id=discussion_id)
+        return redirect("discussion-active", discussion_id=discussion_id)
 
-    # Get all participants
-    participants = DiscussionParticipant.objects.filter(
-        discussion=discussion
-    ).select_related("user")
-    
-    # Get join requests for moderators/initiators
-    pending_join_requests = []
-    all_join_requests = []
-    is_moderator = False
-    
-    if participant:
-        is_moderator = (
-            participant.role == "initiator" or
-            discussion.delegated_approver == request.user
-        )
-        
-        if is_moderator:
-            pending_join_requests = JoinRequest.objects.filter(
-                discussion=discussion,
-                status="pending"
-            ).select_related("requester").order_by("-created_at")
-            
-            all_join_requests = JoinRequest.objects.filter(
-                discussion=discussion
-            ).exclude(status="pending").select_related("requester").order_by("-resolved_at")[:10]
-
-    context = {
-        "discussion": discussion,
-        "participant": participant,
-        "responses": responses,
-        "participants": participants,
-        "can_respond": participant and participant.role in ["initiator", "active"],
-        "is_observer": participant and participant.role in ["temporary_observer", "permanent_observer"],
-        "is_moderator": is_moderator,
-        "pending_join_requests": pending_join_requests,
-        "all_join_requests": all_join_requests,
-    }
-
-    return render(request, "discussions/detail.html", context)
+    # Everyone else (observers, non-participants) gets observer view
+    return redirect("discussion-observer", discussion_id=discussion_id)
 
 
 @login_required
 def discussion_participate_view(request, discussion_id):
-    """Response submission form."""
-    discussion = get_object_or_404(Discussion, id=discussion_id)
-
-    # Check if user can respond
-    try:
-        participant = DiscussionParticipant.objects.get(
-            discussion=discussion, user=request.user
-        )
-    except DiscussionParticipant.DoesNotExist:
-        messages.error(request, "You are not a participant in this discussion.")
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    if participant.role not in ["initiator", "active"]:
-        messages.error(request, "You cannot respond at this time.")
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    if request.method == "POST":
-        content = request.POST.get("content", "").strip()
-        if not content:
-            messages.error(request, "Response content is required.")
-            return redirect("discussion-participate", discussion_id=discussion_id)
-
-        # Get current round
-        current_round = Round.objects.filter(
-            discussion=discussion
-        ).order_by("-round_number").first()
-        if not current_round:
-            messages.error(request, "No active round found.")
-            return redirect("discussion-detail", discussion_id=discussion_id)
-
-        try:
-            from core.services.response_service import ResponseService
-            ResponseService.submit_response(
-                user=request.user,
-                round=current_round,
-                content=content,
-            )
-            messages.success(request, "Response submitted successfully!")
-        except ValidationError as e:
-            messages.error(request, str(e))
-            return redirect("discussion-participate", discussion_id=discussion_id)
-
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    # Get previous responses for quoting
-    previous_responses = (
-        Response.objects.filter(round__discussion=discussion)
-        .select_related("user", "round")
-        .order_by("round__round_number", "created_at")
-    )
-
-    context = {
-        "discussion": discussion,
-        "participant": participant,
-        "previous_responses": previous_responses,
-        "max_chars": discussion.max_response_length_chars,
-        "max_length": discussion.max_response_length_chars,
-        "min_length": 50,  # Default minimum length
-    }
-
-    return render(request, "discussions/participate.html", context)
+    """Legacy response form - redirect to active view."""
+    return redirect("discussion-active", discussion_id=discussion_id)
 
 
 
@@ -712,7 +531,7 @@ def dashboard_new_view(request):
         time_remaining = None
         
         if participation.role == 'active':
-            if current_round and current_round.status == 'active':
+            if current_round and current_round.status == 'in_progress':
                 # Check if user has responded
                 has_responded = Response.objects.filter(
                     round=current_round,

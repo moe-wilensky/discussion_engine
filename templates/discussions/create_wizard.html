@@ -348,7 +348,8 @@ async function searchUsers() {
   
   try {
     const response = await fetch(`/api/users/search/?q=${encodeURIComponent(query)}`);
-    const users = await response.json();
+    const data = await response.json();
+    const users = data.users || [];
     
     const resultsEl = document.getElementById('search-results');
     resultsEl.innerHTML = users.map(user => `

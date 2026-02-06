@@ -306,7 +306,7 @@ class Command(BaseCommand):
                 current_round = discussion.rounds.get(round_number=round_counter)
             except Round.DoesNotExist:
                 # Check if discussion ended
-                if discussion.status in ["archived", "completed"]:
+                if discussion.status == "archived":
                     break
                 
                 # Wait for round creation
@@ -341,7 +341,7 @@ class Command(BaseCommand):
                         )
                     )
                     self.mechanics_verified["discussion_lock"] = True
-                    if discussion.status in ["archived", "completed"]:
+                    if discussion.status == "archived":
                         break
 
                 # Move to next round
@@ -351,7 +351,7 @@ class Command(BaseCommand):
                 if not discussion.rounds.filter(round_number=round_counter).exists():
                     # Check termination conditions
                     discussion.refresh_from_db()
-                    if discussion.status in ["archived", "completed"]:
+                    if discussion.status == "archived":
                         break
 
                     # Wait a bit for next round creation by background tasks
@@ -364,7 +364,7 @@ class Command(BaseCommand):
 
                     # Check again
                     if not discussion.rounds.filter(round_number=round_counter).exists():
-                        # No more rounds, discussion might be over
+                        # No more rounds, discussion is over
                         break
             else:
                 # Unknown status, wait
@@ -1135,11 +1135,14 @@ class Command(BaseCommand):
 
             # Start round and enter voting phase
             round1 = discussion.rounds.first()
-            round1.phase = 'voting'
+            round1.status = 'voting'
             round1.save()
 
-            # User1 votes on MRL
-            VotingService.record_mrl_vote(round1, user1, 150)
+            # User1 votes
+            VotingService.cast_parameter_vote(
+                user=user1, round=round1,
+                mrl_vote="increase", rtm_vote="no_change",
+            )
             user1.refresh_from_db()
 
             # Verify credits awarded
@@ -1155,8 +1158,11 @@ class Command(BaseCommand):
                 discussion.delete()
                 return False
 
-            # User1 votes again (RTM) in same round
-            VotingService.record_rtm_vote(round1, user1, 45)
+            # User1 votes again in same round (should NOT get double credits)
+            VotingService.cast_parameter_vote(
+                user=user1, round=round1,
+                mrl_vote="decrease", rtm_vote="increase",
+            )
             user1.refresh_from_db()
 
             # Verify credits NOT awarded again
@@ -1167,7 +1173,10 @@ class Command(BaseCommand):
                 return False
 
             # User2 votes
-            VotingService.record_mrl_vote(round1, user2, 150)
+            VotingService.cast_parameter_vote(
+                user=user2, round=round1,
+                mrl_vote="increase", rtm_vote="no_change",
+            )
             user2.refresh_from_db()
 
             # Verify user2 also received credits
@@ -1181,11 +1190,14 @@ class Command(BaseCommand):
             round2 = Round.objects.create(
                 discussion=discussion,
                 round_number=2,
-                phase='voting'
+                status='voting'
             )
 
             after_round1_platform = user1.platform_invites_acquired
-            VotingService.record_mrl_vote(round2, user1, 200)
+            VotingService.cast_parameter_vote(
+                user=user1, round=round2,
+                mrl_vote="increase", rtm_vote="decrease",
+            )
             user1.refresh_from_db()
 
             # Verify credits awarded again in new round
@@ -1219,10 +1231,10 @@ class Command(BaseCommand):
 
             # Make user an observer due to MRP timeout
             participant = DiscussionParticipant.objects.get(discussion=discussion, user=user)
-            participant.role = 'observer'
-            participant.observer_reason = 'mrp_timeout'
-            participant.became_observer_at = timezone.now()
-            participant.observer_source_round = round1
+            participant.role = 'temporary_observer'
+            participant.observer_reason = 'mrp_expired'
+            participant.observer_since = timezone.now()
+            participant.skip_invite_credits_on_return = True
             participant.save()
 
             # Record credits before return
@@ -1233,7 +1245,7 @@ class Command(BaseCommand):
             round2 = Round.objects.create(
                 discussion=discussion,
                 round_number=2,
-                phase='in_progress'
+                status='in_progress'
             )
 
             # User rejoins by posting
@@ -1286,10 +1298,10 @@ class Command(BaseCommand):
             # Make both users observers due to kamikaze
             for user in [attacker, target]:
                 participant = DiscussionParticipant.objects.get(discussion=discussion, user=user)
-                participant.role = 'observer'
-                participant.observer_reason = 'kamikaze'
-                participant.became_observer_at = timezone.now()
-                participant.observer_source_round = round1
+                participant.role = 'temporary_observer'
+                participant.observer_reason = 'mutual_removal'
+                participant.observer_since = timezone.now()
+                participant.skip_invite_credits_on_return = True
                 participant.save()
 
             # Record credits before return
@@ -1300,14 +1312,14 @@ class Command(BaseCommand):
             round2 = Round.objects.create(
                 discussion=discussion,
                 round_number=2,
-                phase='in_progress'
+                status='in_progress'
             )
 
             # Create round 3 (they can rejoin here)
             round3 = Round.objects.create(
                 discussion=discussion,
                 round_number=3,
-                phase='in_progress'
+                status='in_progress'
             )
 
             # User rejoins by posting in round 3
@@ -1351,9 +1363,9 @@ class Command(BaseCommand):
             participants = list(discussion.participants.filter(role='active'))
             for i, participant in enumerate(participants):
                 if i > 0:  # Keep first one active
-                    participant.role = 'observer'
-                    participant.observer_reason = 'mrp_timeout'
-                    participant.became_observer_at = timezone.now()
+                    participant.role = 'temporary_observer'
+                    participant.observer_reason = 'mrp_expired'
+                    participant.observer_since = timezone.now()
                     participant.save()
 
             # Check active count

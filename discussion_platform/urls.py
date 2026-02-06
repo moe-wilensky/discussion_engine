@@ -65,8 +65,7 @@ urlpatterns = [
         views.discussion_voting_view,
         name="discussion-voting",
     ),
-    # New UI Views
-    path("dashboard-new/", views.dashboard_new_view, name="dashboard-new"),
+    # Discussion Views (new UI)
     path(
         "discussions/<int:discussion_id>/active/",
         views.discussion_active_view,

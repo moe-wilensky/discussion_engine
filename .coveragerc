@@ -4,11 +4,10 @@ omit =
     */tests/*
     */test_*.py
     */__pycache__/*
-    core/tasks.py
     core/tests.py
-    core/views.py
     */conftest.py
     */factories.py
+    core/management/commands/*
 
 [report]
 exclude_lines =

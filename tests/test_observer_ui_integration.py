@@ -89,7 +89,7 @@ class TestObserverUIIntegration:
         client = Client()
         client.force_login(observer)
 
-        response = client.get(f"/discussions/{discussion.id}/")
+        response = client.get(f"/discussions/{discussion.id}/observer/")
 
         assert response.status_code == 200
 

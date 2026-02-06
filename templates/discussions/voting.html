@@ -527,7 +527,7 @@ async function submitAllVotes() {
     // Submit join request votes
     for (const [requestId, vote] of Object.entries(votes.join_requests)) {
       if (vote === 'approve') {
-        await fetch(`/api/discussions/join-requests/${requestId}/vote/`, {
+        await fetch(`/api/discussions/{{ discussion.id }}/vote/join-request/${requestId}/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

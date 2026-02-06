@@ -144,20 +144,10 @@ class DashboardViewTests(ViewIntegrationTestCase):
         response = self.client.get(reverse("dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "dashboard/home.html")
+        self.assertTemplateUsed(response, "dashboard/home_new.html")
 
-        # Verify context data is present
-        self.assertIn("stats", response.context)
-        self.assertIn("active_discussions", response.context)
-        self.assertIn("pending_invites", response.context)
-        self.assertIn("recent_notifications", response.context)
-
-        # Verify stats dictionary has expected keys
-        stats = response.context["stats"]
-        self.assertIn("active_discussions", stats)
-        self.assertIn("responses_posted", stats)
-        self.assertIn("pending_invites", stats)
-        self.assertIn("unread_notifications", stats)
+        # Verify context data is present (new dashboard uses discussions list)
+        self.assertIn("discussions", response.context)
 
     def test_invites_view_loads_with_sent_at_field(self):
         """
@@ -244,13 +234,21 @@ class DashboardViewTests(ViewIntegrationTestCase):
 class DiscussionViewTests(ViewIntegrationTestCase):
     """Test discussion views for field/template errors."""
 
-    def test_discussion_create_view_loads(self):
-        """Test discussion creation form loads."""
+    def test_discussion_create_view_redirects_to_wizard(self):
+        """Test discussion create redirects to create-wizard."""
         self.client.login(username="testuser1", password="testpass123")
         response = self.client.get(reverse("discussion-create"))
 
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/discussions/create-wizard/", response.url)
+
+    def test_discussion_create_wizard_loads(self):
+        """Test discussion creation wizard form loads."""
+        self.client.login(username="testuser1", password="testpass123")
+        response = self.client.get(reverse("discussion-create-wizard"))
+
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "discussions/create.html")
+        self.assertTemplateUsed(response, "discussions/create_wizard.html")
 
     def test_discussion_list_view_loads(self):
         """Test discussion list loads with real data."""
@@ -264,38 +262,42 @@ class DiscussionViewTests(ViewIntegrationTestCase):
         self.assertIn("discussions", response.context)
         self.assertTrue(response.context["discussions"].count() > 0)
 
-    def test_discussion_detail_view_loads(self):
-        """Test discussion detail loads with real data."""
+    def test_discussion_detail_redirects_to_active(self):
+        """Test discussion detail redirects active participants to active view."""
         self.client.login(username="testuser1", password="testpass123")
         response = self.client.get(
             reverse("discussion-detail", kwargs={"discussion_id": self.discussion.id})
         )
 
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"/discussions/{self.discussion.id}/active/", response.url)
+
+    def test_discussion_active_view_loads(self):
+        """Test active view loads with real data."""
+        self.client.login(username="testuser1", password="testpass123")
+        response = self.client.get(
+            reverse("discussion-active", kwargs={"discussion_id": self.discussion.id})
+        )
+
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "discussions/detail.html")
+        self.assertTemplateUsed(response, "discussions/active_view.html")
 
         # Verify context
         self.assertIn("discussion", response.context)
-        self.assertIn("participant", response.context)
+        self.assertIn("current_round", response.context)
         self.assertIn("responses", response.context)
-        self.assertIn("participants", response.context)
 
         self.assertEqual(response.context["discussion"], self.discussion)
 
-    def test_discussion_participate_view_loads(self):
-        """Test participate form loads for eligible users."""
+    def test_discussion_participate_redirects_to_active(self):
+        """Test participate view redirects to active view."""
         self.client.login(username="testuser1", password="testpass123")
         response = self.client.get(
             reverse("discussion-participate", kwargs={"discussion_id": self.discussion.id})
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "discussions/participate.html")
-
-        # Verify context
-        self.assertIn("discussion", response.context)
-        self.assertIn("participant", response.context)
-        self.assertIn("max_chars", response.context)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"/discussions/{self.discussion.id}/active/", response.url)
 
     def test_discussion_voting_view_requires_voting_phase(self):
         """Test voting view checks discussion status."""
@@ -489,17 +491,10 @@ class TemplateContextTests(ViewIntegrationTestCase):
         self.client.login(username="testuser1", password="testpass123")
         response = self.client.get(reverse("dashboard"))
 
-        required_vars = [
-            "stats",
-            "active_discussions",
-            "pending_invites",
-            "recent_notifications",
-        ]
-
-        for var in required_vars:
-            self.assertIn(
-                var, response.context, f"Missing required context variable: {var}"
-            )
+        # New dashboard uses discussions list context
+        self.assertIn(
+            "discussions", response.context, "Missing required context variable: discussions"
+        )
 
     def test_invites_context_variables(self):
         """Verify invites view passes all required context variables."""
@@ -518,20 +513,17 @@ class TemplateContextTests(ViewIntegrationTestCase):
                 var, response.context, f"Missing required context variable: {var}"
             )
 
-    def test_discussion_detail_context_variables(self):
-        """Verify discussion detail passes all required context variables."""
+    def test_discussion_active_context_variables(self):
+        """Verify active view passes all required context variables."""
         self.client.login(username="testuser1", password="testpass123")
         response = self.client.get(
-            reverse("discussion-detail", kwargs={"discussion_id": self.discussion.id})
+            reverse("discussion-active", kwargs={"discussion_id": self.discussion.id})
         )
 
         required_vars = [
             "discussion",
-            "participant",
+            "current_round",
             "responses",
-            "participants",
-            "can_respond",
-            "is_observer",
         ]
 
         for var in required_vars:

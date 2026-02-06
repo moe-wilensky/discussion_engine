@@ -126,14 +126,7 @@
         </div>
       </div>
       
-      {% if response.quoted_response %}
-      <div class="quoted-response">
-        <div class="quote-author">@{{ response.quoted_response.user.username }}</div>
-        <div class="quote-text">{{ response.quoted_response.response_text|truncatewords:30 }}</div>
-      </div>
-      {% endif %}
-      
-      <div class="response-content">{{ response.response_text }}</div>
+      <div class="response-content">{{ response.content }}</div>
     </div>
     {% endfor %}
   </div>
@@ -163,7 +156,7 @@ async function askToJoin() {
   if (message === null) return; // Cancelled
   
   try {
-    const response = await fetch(`/api/discussions/${discussionId}/join-requests/`, {
+    const response = await fetch(`/api/discussions/${discussionId}/join-request/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

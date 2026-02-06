@@ -272,7 +272,7 @@ def my_discussion_states(request):
     """
     from django.utils import timezone
     from datetime import timedelta
-    from core.models import DiscussionParticipant, Response, Round
+    from core.models import DiscussionParticipant, Response as ResponseModel, Round
     
     user = request.user
     
@@ -298,8 +298,8 @@ def my_discussion_states(request):
         deadline_iso = None
         
         if participation.role == 'active':
-            if current_round and current_round.status == 'active':
-                has_responded = Response.objects.filter(
+            if current_round and current_round.status == 'in_progress':
+                has_responded = ResponseModel.objects.filter(
                     round=current_round,
                     user=user
                 ).exists()
@@ -309,9 +309,9 @@ def my_discussion_states(request):
                     ui_icon = '✍️'
                     action_label = 'Your response needed'
                     
-                    if current_round.mrp_deadline:
-                        deadline_iso = current_round.mrp_deadline.isoformat()
-                        remaining = current_round.mrp_deadline - timezone.now()
+                    if current_round.end_time:
+                        deadline_iso = current_round.end_time.isoformat()
+                        remaining = current_round.end_time - timezone.now()
                         if remaining.total_seconds() > 0:
                             minutes = int(remaining.total_seconds() / 60)
                             if minutes < 10:

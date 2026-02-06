@@ -202,11 +202,11 @@ def broadcast_mrp_timers():
     """
     from core.models import Round, Discussion
     
-    # Get all active rounds with MRP deadlines
+    # Get all active rounds with deadlines
     active_rounds = Round.objects.filter(
         discussion__status='active',
         status='in_progress',
-        mrp_deadline__isnull=False
+        end_time__isnull=False
     ).select_related('discussion')
     
     channel_layer = get_channel_layer()
@@ -215,7 +215,7 @@ def broadcast_mrp_timers():
     
     broadcast_count = 0
     for round_obj in active_rounds:
-        time_remaining = (round_obj.mrp_deadline - timezone.now()).total_seconds()
+        time_remaining = (round_obj.end_time - timezone.now()).total_seconds()
         if time_remaining > 0:
             async_to_sync(channel_layer.group_send)(
                 f"discussion_{round_obj.discussion.id}",
@@ -223,7 +223,7 @@ def broadcast_mrp_timers():
                     "type": "mrp_timer_update",
                     "round_number": round_obj.round_number,
                     "time_remaining_seconds": int(time_remaining),
-                    "mrp_deadline": round_obj.mrp_deadline.isoformat(),
+                    "mrp_deadline": round_obj.end_time.isoformat(),
                 }
             )
             broadcast_count += 1

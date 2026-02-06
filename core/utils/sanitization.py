@@ -117,11 +117,15 @@ def sanitize_url(url: str) -> str:
     # Check if URL starts with allowed protocol
     url_lower = url.lower().strip()
     for protocol in ALLOWED_PROTOCOLS:
-        if url_lower.startswith(f'{protocol}:'):
+        if url_lower.startswith(f'{protocol}://') or url_lower.startswith(f'{protocol}:'):
             return url
 
     # If no protocol specified, assume https
-    if not any(url_lower.startswith(f'{p}:') for p in ['http:', 'https:', 'mailto:', 'javascript:', 'data:']):
+    dangerous_protocols = ['javascript:', 'data:', 'vbscript:']
+    if any(url_lower.startswith(p) for p in dangerous_protocols):
+        return ''
+
+    if not any(url_lower.startswith(f'{p}://') or url_lower.startswith(f'{p}:') for p in ALLOWED_PROTOCOLS):
         return f'https://{url}'
 
     # Unsafe protocol - return empty string
