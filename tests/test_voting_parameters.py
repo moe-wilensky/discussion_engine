@@ -330,3 +330,121 @@ class TestParameterVoting:
         assert vote1.id == vote2.id
         assert vote2.mrl_vote == "decrease"
         assert vote2.rtm_vote == "decrease"
+
+    def test_vote_counts_displayed_in_ui(self, setup_voting_scenario):
+        """Verify vote counts visible during voting"""
+        from core.models import JoinRequest
+
+        data = setup_voting_scenario
+        round = data["round"]
+        discussion = data["discussion"]
+
+        # Create join request
+        requester = User.objects.create_user(
+            username="requester", phone_number="+11234567894", password="test123"
+        )
+        join_request = JoinRequest.objects.create(
+            discussion=discussion,
+            requester=requester,
+            approver=data["initiator"],
+            status='pending'
+        )
+
+        # Cast some votes
+        VotingService.record_join_request_vote(
+            round_obj=round,
+            voter=data["initiator"],
+            join_request=join_request,
+            approve=True
+        )
+        VotingService.record_join_request_vote(
+            round_obj=round,
+            voter=data["user1"],
+            join_request=join_request,
+            approve=False
+        )
+
+        # Get vote counts
+        counts = VotingService.get_join_request_vote_counts(round, join_request)
+
+        # Verify counts are available (would be displayed in UI)
+        assert counts is not None
+        assert 'approve' in counts
+        assert 'deny' in counts
+        assert 'total' in counts
+        assert counts['approve'] == 1
+        assert counts['deny'] == 1
+        assert counts['total'] == 2
+
+    def test_multiple_join_requests_processed(self, setup_voting_scenario):
+        """Verify batch processing works for multiple join requests"""
+        from core.models import JoinRequest
+
+        data = setup_voting_scenario
+        round = data["round"]
+        discussion = data["discussion"]
+
+        # Create multiple join requests
+        requester1 = User.objects.create_user(
+            username="requester1", phone_number="+11234567894", password="test123"
+        )
+        requester2 = User.objects.create_user(
+            username="requester2", phone_number="+11234567895", password="test123"
+        )
+        requester3 = User.objects.create_user(
+            username="requester3", phone_number="+11234567896", password="test123"
+        )
+
+        join_request1 = JoinRequest.objects.create(
+            discussion=discussion,
+            requester=requester1,
+            approver=data["initiator"],
+            status='pending'
+        )
+        join_request2 = JoinRequest.objects.create(
+            discussion=discussion,
+            requester=requester2,
+            approver=data["initiator"],
+            status='pending'
+        )
+        join_request3 = JoinRequest.objects.create(
+            discussion=discussion,
+            requester=requester3,
+            approver=data["initiator"],
+            status='pending'
+        )
+
+        # Vote on multiple requests with different outcomes
+        # Request 1: Approve (2 yes, 1 no = 66% approval)
+        VotingService.record_join_request_vote(round, data["initiator"], join_request1, True)
+        VotingService.record_join_request_vote(round, data["user1"], join_request1, True)
+        VotingService.record_join_request_vote(round, data["user2"], join_request1, False)
+
+        # Request 2: Deny (1 yes, 2 no = 33% approval)
+        VotingService.record_join_request_vote(round, data["initiator"], join_request2, True)
+        VotingService.record_join_request_vote(round, data["user1"], join_request2, False)
+        VotingService.record_join_request_vote(round, data["user2"], join_request2, False)
+
+        # Request 3: No votes (stays pending)
+
+        # Process all join requests
+        results = VotingService.process_join_request_votes(round)
+
+        # Verify batch processing
+        assert len(results['approved']) == 1
+        assert join_request1 in results['approved']
+
+        assert len(results['denied']) == 1
+        assert join_request2 in results['denied']
+
+        assert len(results['pending']) == 1
+        assert join_request3 in results['pending']
+
+        # Verify database updates
+        join_request1.refresh_from_db()
+        join_request2.refresh_from_db()
+        join_request3.refresh_from_db()
+
+        assert join_request1.status == 'approved'
+        assert join_request2.status == 'declined'
+        assert join_request3.status == 'pending'

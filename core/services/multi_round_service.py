@@ -132,3 +132,47 @@ class MultiRoundService:
             # Archival reason could be stored in a log model
             # For now, it's implied by the archived_at timestamp
             # Notifications would be sent by the calling task
+
+    @staticmethod
+    def close_voting_and_create_next_round(current_round):
+        """
+        Close voting phase, process all votes, and create next round.
+
+        This includes:
+        1. Processing parameter votes (MRL, RTM)
+        2. Processing removal votes
+        3. Processing join request votes (NEW)
+        4. Creating next round with updated parameters
+
+        Args:
+            current_round: Round instance ending voting phase
+
+        Returns:
+            Round: The newly created next round
+        """
+        from core.services.voting_service import VotingService
+        from core.services.moderation_voting_service import ModerationVotingService
+
+        # Process parameter votes
+        new_mrl = VotingService.determine_winning_mrl(current_round)
+        new_rtm = VotingService.determine_winning_rtm(current_round)
+
+        # Process removal votes
+        removal_results = ModerationVotingService.process_removal_votes(current_round)
+
+        # Process join request votes (NEW)
+        join_results = VotingService.process_join_request_votes(current_round)
+
+        # Update discussion parameters
+        discussion = current_round.discussion
+        discussion.max_response_length_chars = new_mrl
+        discussion.response_time_multiplier = new_rtm
+        discussion.save()
+
+        # Create next round
+        next_round = MultiRoundService.create_next_round(
+            discussion=discussion,
+            previous_round=current_round
+        )
+
+        return next_round

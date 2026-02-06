@@ -75,11 +75,38 @@ def update_platform_config(request):
     PATCH /api/admin/platform-config/
     """
     try:
+        # Validate first by calling service (it will raise ValidationError for invalid fields)
+        # But don't save yet - we need old values first
         old_config = PlatformConfig.load()
+        
+        # Validate fields exist before trying to get old values
+        valid_fields = {
+            "new_user_platform_invites", "new_user_discussion_invites",
+            "responses_to_unlock_invites", "responses_per_platform_invite",
+            "responses_per_discussion_invite", "max_discussion_participants",
+            "n_responses_before_mrp", "max_headline_length", "max_topic_length",
+            "voting_increment_percentage", "vote_based_removal_threshold",
+            "max_discussion_duration_days", "max_discussion_rounds",
+            "max_discussion_responses", "round_1_phase_1_timeout_days",
+            "response_edit_percentage", "response_edit_limit",
+            "rtm_min", "rtm_max", "mrm_min_minutes", "mrm_max_minutes",
+            "mrl_min_chars", "mrl_max_chars",
+        }
+        
+        # Check for invalid fields first
+        for field in request.data.keys():
+            if field not in valid_fields:
+                return APIResponse(
+                    {"error": f"Invalid field: {field}"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get old values for valid fields
         old_values = {
             field: getattr(old_config, field) for field in request.data.keys()
         }
 
+        # Now update
         updated_config = AdminService.update_platform_config(
             admin=request.user, updates=request.data
         )
@@ -87,10 +114,9 @@ def update_platform_config(request):
         # Build changes list
         changes = []
         for field, new_value in request.data.items():
-            if field in old_values:
-                changes.append(
-                    {"field": field, "old": old_values[field], "new": new_value}
-                )
+            changes.append(
+                {"field": field, "old": old_values[field], "new": new_value}
+            )
 
         return APIResponse(
             {

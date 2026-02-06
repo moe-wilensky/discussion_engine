@@ -147,10 +147,14 @@ class ResponseService:
                 discussion=round.discussion, user=user
             )
 
+            # Check if we should skip invite credits (returning from observer)
+            skip_invite_credits = False
             if participant.role == "temporary_observer":
+                skip_invite_credits = participant.skip_invite_credits_on_return
                 participant.role = "active"
                 participant.observer_since = None
                 participant.observer_reason = None
+                participant.skip_invite_credits_on_return = False  # Reset for next time
                 participant.save()
 
             # Recalculate MRP if in Phase 2
@@ -166,8 +170,8 @@ class ResponseService:
                     round.final_mrp_minutes = new_mrp
                     round.save()
 
-            # Earn invites
-            InviteService.earn_invite_from_response(user)
+            # Earn invites (skip if returning from observer without posting in removal round)
+            InviteService.earn_invite_from_response(user, skip_credits=skip_invite_credits)
 
             # Track first participation if from invite
             invites = round.discussion.invites.filter(

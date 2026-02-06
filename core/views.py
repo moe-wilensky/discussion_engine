@@ -439,7 +439,14 @@ def discussion_participate_view(request, discussion_id):
 
 @login_required
 def discussion_voting_view(request, discussion_id):
-    """Voting interface for inter-round voting."""
+    """
+    Voting interface for inter-round voting.
+
+    Updated 2026-02: Added join request voting support
+    """
+    from core.models import JoinRequest, JoinRequestVote, Round
+    from core.services.voting_service import VotingService
+
     discussion = get_object_or_404(Discussion, id=discussion_id)
 
     if discussion.status != "voting":
@@ -460,6 +467,9 @@ def discussion_voting_view(request, discussion_id):
         messages.success(request, "Votes submitted successfully!")
         return redirect("discussion-detail", discussion_id=discussion_id)
 
+    # Get current round
+    current_round = Round.objects.filter(discussion=discussion).order_by('-round_number').first()
+
     # Get other participants for moderation voting
     other_participants = (
         DiscussionParticipant.objects.filter(discussion=discussion, role__in=["active", "initiator"])
@@ -467,10 +477,42 @@ def discussion_voting_view(request, discussion_id):
         .select_related("user")
     )
 
+    # Get pending join requests with vote data
+    pending_join_requests = JoinRequest.objects.filter(
+        discussion=discussion,
+        status='pending'
+    ).select_related('requester')
+
+    # Annotate each request with vote counts and user's vote
+    join_request_data = []
+    if current_round:
+        for jr in pending_join_requests:
+            vote_counts = VotingService.get_join_request_vote_counts(current_round, jr)
+
+            # Check if current user voted
+            user_vote = JoinRequestVote.objects.filter(
+                round=current_round,
+                voter=request.user,
+                join_request=jr
+            ).first()
+
+            join_request_data.append({
+                'id': jr.id,
+                'user': jr.requester,
+                'message': jr.message,
+                'requested_at': jr.requested_at,
+                'approve_votes': vote_counts['approve'],
+                'deny_votes': vote_counts['deny'],
+                'total_votes': vote_counts['total'],
+                'user_has_voted': user_vote is not None,
+                'user_vote_approve': user_vote.approve if user_vote else None
+            })
+
     context = {
         "discussion": discussion,
         "participant": participant,
         "other_participants": other_participants,
+        "pending_join_requests": join_request_data,
     }
 
     return render(request, "discussions/voting.html", context)

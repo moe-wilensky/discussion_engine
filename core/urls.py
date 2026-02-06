@@ -15,6 +15,7 @@ from core.api import (
     responses,
     voting,
     moderation,
+    mutual_removal,
     notifications,
     admin,
     health,
@@ -184,11 +185,33 @@ urlpatterns = [
         voting.rejoin_discussion,
         name="rejoin-discussion",
     ),
+    # Join request voting (NEW - 2026-02)
+    path(
+        "discussions/<int:discussion_id>/vote/join-request/<int:join_request_id>/",
+        voting.vote_join_request,
+        name="vote-join-request",
+    ),
     # Moderation endpoints
     path(
         "discussions/<int:discussion_id>/mutual-removal/",
         moderation.mutual_removal,
         name="mutual-removal",
+    ),
+    # Mutual removal (DEPRECATED - returns 410 Gone)
+    path(
+        "discussions/<int:discussion_id>/mutual-removal/initiate/",
+        mutual_removal.initiate_mutual_removal,
+        name="initiate-mutual-removal",
+    ),
+    path(
+        "discussions/<int:discussion_id>/mutual-removal/<int:attack_id>/respond/",
+        mutual_removal.respond_mutual_removal,
+        name="respond-mutual-removal",
+    ),
+    path(
+        "discussions/<int:discussion_id>/mutual-removal/status/",
+        mutual_removal.check_mutual_removal_status,
+        name="check-mutual-removal-status",
     ),
     path(
         "discussions/<int:discussion_id>/moderation-status/",

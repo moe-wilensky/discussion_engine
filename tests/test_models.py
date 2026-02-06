@@ -130,8 +130,8 @@ class TestPlatformConfig:
 
     def test_default_values(self, config):
         """Test that default configuration values are set."""
-        assert config.new_user_platform_invites == 3
-        assert config.new_user_discussion_invites == 5
+        assert config.new_user_platform_invites == 5
+        assert config.new_user_discussion_invites == 25
         assert config.max_discussion_participants == 10
         assert config.response_edit_limit == 2
         assert config.response_edit_percentage == 20
@@ -285,11 +285,16 @@ class TestDiscussionParticipant:
             )
 
     def test_observer_reentry_mrp_expired_posted(
-        self, discussion_factory, user_factory
+        self, discussion_factory, user_factory, round_factory
     ):
         """Test observer can rejoin immediately if posted in removal round."""
         discussion = discussion_factory()
         user = user_factory()
+
+        # Create an in-progress round for rejoin check
+        current_round = round_factory(
+            discussion=discussion, round_number=1, status="in_progress"
+        )
 
         participant = DiscussionParticipant.objects.create(
             discussion=discussion,
@@ -330,58 +335,6 @@ class TestDiscussionParticipant:
         )
         assert participant.can_rejoin()
 
-    def test_observer_reentry_mutual_removal_first_time(
-        self, discussion_factory, user_factory
-    ):
-        """Test first mutual removal has 24hr wait."""
-        discussion = discussion_factory()
-        user = user_factory()
-
-        now = timezone.now()
-        participant = DiscussionParticipant.objects.create(
-            discussion=discussion,
-            user=user,
-            role="temporary_observer",
-            observer_reason="mutual_removal",
-            observer_since=now - timedelta(hours=23),
-            removal_count=1,
-        )
-
-        # Not enough time passed
-        assert not participant.can_rejoin()
-
-        # Update to 24+ hours ago
-        participant.observer_since = now - timedelta(hours=25)
-        participant.save()
-
-        assert participant.can_rejoin()
-
-    def test_observer_reentry_mutual_removal_second_time(
-        self, discussion_factory, user_factory
-    ):
-        """Test second mutual removal has 7 day wait."""
-        discussion = discussion_factory()
-        user = user_factory()
-
-        now = timezone.now()
-        participant = DiscussionParticipant.objects.create(
-            discussion=discussion,
-            user=user,
-            role="temporary_observer",
-            observer_reason="mutual_removal",
-            observer_since=now - timedelta(days=6),
-            removal_count=2,
-        )
-
-        # Not enough time passed
-        assert not participant.can_rejoin()
-
-        # Update to 7+ days ago
-        participant.observer_since = now - timedelta(days=8)
-        participant.save()
-
-        assert participant.can_rejoin()
-
     def test_observer_reentry_mutual_removal_third_time(
         self, discussion_factory, user_factory
     ):
@@ -417,27 +370,6 @@ class TestDiscussionParticipant:
         )
 
         assert not participant.can_rejoin()
-
-    def test_get_wait_period_end(self, discussion_factory, user_factory):
-        """Test wait period calculation."""
-        discussion = discussion_factory()
-        user = user_factory()
-
-        now = timezone.now()
-        participant = DiscussionParticipant.objects.create(
-            discussion=discussion,
-            user=user,
-            role="temporary_observer",
-            observer_reason="mutual_removal",
-            observer_since=now,
-            removal_count=1,
-        )
-
-        wait_end = participant.get_wait_period_end()
-        expected_end = now + timedelta(hours=24)
-
-        # Allow 1 second tolerance
-        assert abs((wait_end - expected_end).total_seconds()) < 1
 
 
 @pytest.mark.django_db
@@ -1044,35 +976,6 @@ class TestEdgeCases:
         d2 = discussion_factory(topic_headline="Climate Change")
 
         assert d1.pk != d2.pk
-
-    def test_removal_escalation(self, discussion_factory, user_factory):
-        """Test escalating removal wait periods."""
-        discussion = discussion_factory()
-        user = user_factory()
-
-        participant = DiscussionParticipant.objects.create(
-            discussion=discussion,
-            user=user,
-            role="temporary_observer",
-            observer_reason="mutual_removal",
-            observer_since=timezone.now(),
-            removal_count=0,
-        )
-
-        # Simulate multiple removals
-        wait_periods = []
-        for count in [1, 2, 3]:
-            participant.removal_count = count
-            participant.observer_since = timezone.now()
-            participant.save()
-
-            wait_end = participant.get_wait_period_end()
-            if wait_end:
-                wait_duration = wait_end - participant.observer_since
-                wait_periods.append(wait_duration.total_seconds())
-
-        # Wait periods should increase
-        assert wait_periods[0] < wait_periods[1] < wait_periods[2]
 
     def test_concurrent_invites(self, user_factory):
         """Test user can send multiple invites concurrently."""

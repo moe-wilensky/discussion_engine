@@ -433,12 +433,7 @@ class TestQuoteIntegration:
         user2 = UserFactory.create(username="user2")
         discussion = DiscussionFactory.create(initiator=user1)
         
-        # Add participants
-        DiscussionParticipant.objects.create(
-            discussion=discussion,
-            user=user1,
-            role="active"
-        )
+        # Add participant (user1 already has a participant as initiator from factory)
         DiscussionParticipant.objects.create(
             discussion=discussion,
             user=user2,

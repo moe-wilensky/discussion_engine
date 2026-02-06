@@ -1,8 +1,11 @@
 """
-Mutual removal moderation service.
+MutualRemovalService handles kamikaze/mutual removal attacks.
 
-Handles the mutual removal (Kamikaze Lite) system where users can remove
-each other from discussions with escalating consequences.
+DEPRECATED 2026-02: This feature is hidden from UI but backend logic
+is maintained for historical data integrity. All kamikaze mechanics
+(credit skipping, round skipping) remain functional for existing records.
+
+API endpoints now return 410 Gone with deprecation notice.
 """
 
 from typing import Tuple, Optional
@@ -25,7 +28,7 @@ class MutualRemovalService:
 
     @staticmethod
     def can_initiate_removal(
-        initiator: User, target: User, discussion: Discussion
+        initiator: User, target: User, discussion: Discussion, current_round: Round = None
     ) -> Tuple[bool, str]:
         """
         Check if initiator can remove target.
@@ -34,6 +37,7 @@ class MutualRemovalService:
             initiator: User attempting the removal
             target: User to be removed
             discussion: Discussion context
+            current_round: Current round (optional, if provided checks posting requirement)
 
         Returns:
             Tuple of (can_remove, reason_if_not)
@@ -63,6 +67,21 @@ class MutualRemovalService:
         # Cannot remove yourself
         if initiator == target:
             return False, "You cannot remove yourself"
+        
+        # NEW RULE: Both must have posted in current round before kamikaze can be used
+        if current_round:
+            from core.models import Response
+            initiator_posted = Response.objects.filter(
+                round=current_round, user=initiator
+            ).exists()
+            target_posted = Response.objects.filter(
+                round=current_round, user=target
+            ).exists()
+            
+            if not initiator_posted:
+                return False, "You must post in the current round before using kamikaze"
+            if not target_posted:
+                return False, "Target must have posted in the current round"
 
         # Check if initiator already removed target in this discussion
         existing_removal = ModerationAction.objects.filter(
@@ -144,9 +163,9 @@ class MutualRemovalService:
         Raises:
             ValidationError: If removal cannot be performed
         """
-        # Validate can initiate removal
+        # Validate can initiate removal (pass current_round for posting check)
         can_remove, reason = MutualRemovalService.can_initiate_removal(
-            initiator, target, discussion
+            initiator, target, discussion, current_round
         )
         if not can_remove:
             raise ValidationError(reason)
@@ -173,12 +192,16 @@ class MutualRemovalService:
         initiator_participant.observer_since = timezone.now()
         initiator_participant.posted_in_round_when_removed = initiator_posted
         initiator_participant.removal_count += 1
+        # Both kamikaze participants skip invite credits after missing full round
+        initiator_participant.skip_invite_credits_on_return = True
 
         target_participant.role = "temporary_observer"
         target_participant.observer_reason = "mutual_removal"
         target_participant.observer_since = timezone.now()
         target_participant.posted_in_round_when_removed = target_posted
         target_participant.times_removed += 1
+        # Both kamikaze participants skip invite credits after missing full round
+        target_participant.skip_invite_credits_on_return = True
 
         # Check escalation - if 3rd removal, make permanent observer
         initiator_is_permanent = False
@@ -238,15 +261,16 @@ class MutualRemovalService:
                 target, discussion, target_participant.times_removed
             )
 
-        # Check if round should end (no active participants left)
+        # Check if round should end (≤1 active participant left)
         active_count = discussion.participants.filter(
             role__in=["initiator", "active"]
         ).count()
 
-        if active_count == 0:
-            # Archive discussion - no active participants
+        if active_count <= 1:
+            # Archive discussion - insufficient active participants to continue
             discussion.status = "archived"
-            discussion.save(update_fields=["status"])
+            discussion.archived_at = timezone.now()
+            discussion.save(update_fields=["status", "archived_at"])
 
         return moderation_action
 

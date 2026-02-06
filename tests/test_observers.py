@@ -41,7 +41,7 @@ class TestObserverRejoin:
     def test_mrp_expired_observer_can_rejoin_next_round(self):
         """
         Test that MRP expired observer can rejoin in next round.
-        
+
         Scenario:
         - User becomes observer due to MRP expiry in round 1
         - User did NOT post in round 1
@@ -51,12 +51,11 @@ class TestObserverRejoin:
         config = PlatformConfig.load()
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        # Create participant record (DiscussionFactory doesn't auto-create it)
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
         
         # Create round 1
@@ -91,7 +90,7 @@ class TestObserverRejoin:
     def test_mrp_expired_observer_cannot_rejoin_same_round(self):
         """
         Test that MRP expired observer cannot rejoin in same round.
-        
+
         Scenario:
         - User becomes observer in current round
         - User did NOT post before becoming observer
@@ -101,12 +100,11 @@ class TestObserverRejoin:
         config = PlatformConfig.load()
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        # Create participant record
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
         
         # Create current round
@@ -131,7 +129,7 @@ class TestObserverRejoin:
     def test_mrp_expired_observer_with_post_can_rejoin_immediately(self):
         """
         Test that observer who posted before MRP expiry can rejoin immediately.
-        
+
         Scenario:
         - User posted a response
         - MRP expired, user became observer
@@ -139,127 +137,198 @@ class TestObserverRejoin:
         """
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        # Create participant record
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
-        
-        # Create current round
+
+        # Create current round with start_time before observer_since
         current_round = RoundFactory(
             discussion=discussion,
             round_number=1,
             status="in_progress"
         )
-        
-        # Mark as observer who posted
+        current_round.start_time = timezone.now() - timedelta(minutes=10)
+        current_round.save()
+
+        # Mark as observer who posted (became observer 5 minutes ago, during this round)
         participant.role = "temporary_observer"
         participant.observer_reason = "mrp_expired"
         participant.observer_since = timezone.now() - timedelta(minutes=5)
         participant.posted_in_round_when_removed = True
         participant.save()
-        
-        # Test rejoin capability
+
+        # Test rejoin capability - should be able to rejoin immediately since they posted
         assert participant.can_rejoin() is True
 
-    def test_mutual_removal_first_offense_24h_wait(self):
+    def test_mutual_removal_with_post_must_skip_full_round(self):
         """
-        Test mutual removal first offense has 24-hour wait period.
-        
-        Boundary test: 1 second before vs 1 second after expiry.
+        Test mutual removal after posting requires skipping entire next round.
+
+        Scenario:
+        - User A and User B use kamikaze in round 1 (both had posted)
+        - They become observers and must skip round 2 entirely
+        - They can rejoin in round 3
         """
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
+
+        # Create round 1 where removal happened
+        round1 = RoundFactory(
+            discussion=discussion,
+            round_number=1,
+            status="completed"
+        )
+        round1.start_time = timezone.now() - timedelta(hours=3)
+        round1.end_time = timezone.now() - timedelta(hours=2)
+        round1.save()
+
+        # Mark as observer after posting (kamikaze)
         participant.role = "temporary_observer"
         participant.observer_reason = "mutual_removal"
-        participant.removal_count = 1
-        participant.observer_since = timezone.now() - timedelta(hours=24, seconds=1)
+        participant.observer_since = round1.end_time
+        participant.posted_in_round_when_removed = True
         participant.save()
-        
-        # 1 second AFTER 24 hours - should be able to rejoin
-        assert participant.can_rejoin() is True
-        
-        # Now test 1 second BEFORE 24 hours
-        participant.observer_since = timezone.now() - timedelta(hours=23, minutes=59, seconds=59)
-        participant.save()
-        
+
+        # Create round 2 (must skip)
+        round2 = RoundFactory(
+            discussion=discussion,
+            round_number=2,
+            status="in_progress"
+        )
+        round2.start_time = timezone.now() - timedelta(hours=1)
+        round2.save()
+
+        # Cannot rejoin in round 2
         assert participant.can_rejoin() is False
 
-    def test_mutual_removal_second_offense_7day_wait(self):
-        """
-        Test mutual removal second offense has 7-day wait period.
-        
-        Boundary test: 1 second before vs 1 second after expiry.
-        """
-        user = UserFactory()
-        discussion = DiscussionFactory(initiator=user)
-        
-        participant = DiscussionParticipant.objects.create(
+        # Create round 3 (can rejoin)
+        round3 = RoundFactory(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            round_number=3,
+            status="in_progress"
         )
-        participant.role = "temporary_observer"
-        participant.observer_reason = "mutual_removal"
-        participant.removal_count = 2
-        participant.observer_since = timezone.now() - timedelta(days=7, seconds=1)
-        participant.save()
-        
-        # 1 second AFTER 7 days - should be able to rejoin
-        assert participant.can_rejoin() is True
-        
-        # Now test 1 second BEFORE 7 days
-        participant.observer_since = timezone.now() - timedelta(days=6, hours=23, minutes=59, seconds=59)
-        participant.save()
-        
-        assert participant.can_rejoin() is False
+        round3.start_time = timezone.now()
+        round3.save()
 
-    def test_mutual_removal_third_offense_permanent(self):
+        # Now can rejoin in round 3
+        assert participant.can_rejoin() is True
+
+    def test_mutual_removal_without_post_can_rejoin_next_round(self):
         """
-        Test that third mutual removal is effectively permanent.
-        
-        Even after 365 days, should not be able to rejoin.
+        Test mutual removal without posting allows rejoin in next round.
+
+        Scenario:
+        - User becomes observer via kamikaze but hadn't posted yet
+        - Can rejoin in the next round (after 1 MRP)
         """
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
+
+        # Create round 1 where removal happened
+        round1 = RoundFactory(
+            discussion=discussion,
+            round_number=1,
+            status="completed"
+        )
+        round1.start_time = timezone.now() - timedelta(hours=2)
+        round1.end_time = timezone.now() - timedelta(hours=1)
+        round1.save()
+
+        # Mark as observer without posting
         participant.role = "temporary_observer"
         participant.observer_reason = "mutual_removal"
-        participant.removal_count = 3
-        participant.observer_since = timezone.now() - timedelta(days=400)
+        participant.observer_since = round1.end_time
+        participant.posted_in_round_when_removed = False
         participant.save()
-        
-        # Should never be able to rejoin
+
+        # Create round 2
+        round2 = RoundFactory(
+            discussion=discussion,
+            round_number=2,
+            status="in_progress"
+        )
+        round2.start_time = timezone.now() - timedelta(minutes=5)
+        round2.save()
+
+        # Can rejoin in round 2
+        assert participant.can_rejoin() is True
+
+    def test_mutual_removal_with_post_cannot_rejoin_in_skip_round(self):
+        """
+        Test that kamikaze user cannot rejoin during the skip round.
+
+        Scenario:
+        - User kamikazed in round 1 after posting
+        - Round 2 is in progress
+        - User tries to rejoin - should be blocked
+        """
+        user = UserFactory()
+        discussion = DiscussionFactory(initiator=user)
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
+            discussion=discussion,
+            user=user
+        )
+
+        # Create round 1 where kamikaze happened
+        round1 = RoundFactory(
+            discussion=discussion,
+            round_number=1,
+            status="completed"
+        )
+        round1.start_time = timezone.now() - timedelta(hours=2)
+        round1.save()
+
+        # Mark as observer after posting
+        participant.role = "temporary_observer"
+        participant.observer_reason = "mutual_removal"
+        participant.observer_since = timezone.now() - timedelta(hours=1)
+        participant.posted_in_round_when_removed = True
+        participant.save()
+
+        # Create round 2 (the skip round)
+        round2 = RoundFactory(
+            discussion=discussion,
+            round_number=2,
+            status="in_progress"
+        )
+        round2.start_time = timezone.now() - timedelta(minutes=30)
+        round2.save()
+
+        # Should NOT be able to rejoin in round 2
         assert participant.can_rejoin() is False
 
     def test_vote_based_removal_is_permanent(self):
         """Test that vote-based removal is always permanent."""
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
         participant.role = "temporary_observer"
         participant.observer_reason = "vote_based_removal"
         participant.observer_since = timezone.now() - timedelta(days=365)
         participant.save()
-        
+
         # Should never be able to rejoin
         assert participant.can_rejoin() is False
 
@@ -267,15 +336,15 @@ class TestObserverRejoin:
         """Test that permanent observers can never rejoin."""
         user = UserFactory()
         discussion = DiscussionFactory(initiator=user)
-        
-        participant = DiscussionParticipant.objects.create(
+
+        # Get the auto-created participant record
+        participant = DiscussionParticipant.objects.get(
             discussion=discussion,
-            user=user,
-            role="initiator"
+            user=user
         )
         participant.role = "permanent_observer"
         participant.save()
-        
+
         # Should never be able to rejoin
         assert participant.can_rejoin() is False
 

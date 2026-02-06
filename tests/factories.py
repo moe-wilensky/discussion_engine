@@ -55,6 +55,19 @@ class DiscussionFactory(DjangoModelFactory):
     initiator = factory.SubFactory(UserFactory)
     status = "active"
 
+    @factory.post_generation
+    def create_initiator_participant(obj, create, extracted, **kwargs):
+        """Automatically create a DiscussionParticipant for the initiator"""
+        if not create:
+            return
+
+        # Create participant for initiator with 'initiator' role
+        DiscussionParticipant.objects.get_or_create(
+            discussion=obj,
+            user=obj.initiator,
+            defaults={'role': 'initiator'}
+        )
+
 
 class DiscussionParticipantFactory(DjangoModelFactory):
     class Meta:

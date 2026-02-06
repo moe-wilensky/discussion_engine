@@ -8,6 +8,7 @@ import random
 import string
 from typing import Optional, Tuple
 from datetime import timezone as dt_timezone
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -37,18 +38,14 @@ class InviteService:
         """
         config = PlatformConfig.load()
 
-        # Check responses threshold for unlocking invites
-        total_responses = user.responses.count()
-        if total_responses < config.responses_to_unlock_invites:
-            responses_needed = config.responses_to_unlock_invites - total_responses
-            return False, f"Need {responses_needed} more responses to unlock invites"
-
-        # Check banked invites
+        # No responses threshold check needed - users get invites immediately on joining
+        
+        # Check banked invites (must have at least 1.0 to send)
         if invite_type == "platform":
-            if user.platform_invites_banked <= 0:
+            if user.platform_invites_banked < 1:
                 return False, "No platform invites available"
         elif invite_type == "discussion":
-            if user.discussion_invites_banked <= 0:
+            if user.discussion_invites_banked < 1:
                 return False, "No discussion invites available"
         else:
             return False, "Invalid invite type"
@@ -276,50 +273,82 @@ class InviteService:
                 invite.inviter.consume_invite("discussion")
 
     @staticmethod
-    def earn_invite_from_response(user: User) -> dict:
+    def earn_invite_from_response(user: User, skip_credits: bool = False) -> dict:
         """
-        Called after each response submission to calculate earned invites.
+        Called after each response submission to award invites.
+        
+        Awards 0.2 platform invites and 1.0 discussion invite per response.
 
         Args:
             user: User who submitted response
+            skip_credits: If True, don't award invites (for returning from observer)
 
         Returns:
             Dict with earned invite counts
         """
+        if skip_credits:
+            return {
+                "platform_invites_earned": Decimal('0'),
+                "discussion_invites_earned": Decimal('0'),
+                "total_platform": user.platform_invites_acquired,
+                "total_discussion": user.discussion_invites_acquired,
+            }
+        
         config = PlatformConfig.load()
 
-        # Count user's total responses
-        total_responses = user.responses.count()
-
-        # Calculate earned platform invites
-        earned_platform = total_responses // config.responses_per_platform_invite
-
-        # Calculate earned discussion invites
-        earned_discussion = total_responses // config.responses_per_discussion_invite
+        # Award fractional invites per response (ensure Decimal type)
+        platform_per_response = Decimal(str(config.platform_invites_per_response))
+        discussion_per_response = Decimal(str(config.discussion_invites_per_response))
 
         # Update user's acquired and banked invites
         with transaction.atomic():
             user.refresh_from_db()
 
-            platform_diff = earned_platform - user.platform_invites_acquired
-            discussion_diff = earned_discussion - user.discussion_invites_acquired
-
-            if platform_diff > 0:
-                user.platform_invites_acquired = earned_platform
-                user.platform_invites_banked += platform_diff
-
-            if discussion_diff > 0:
-                user.discussion_invites_acquired = earned_discussion
-                user.discussion_invites_banked += discussion_diff
+            user.platform_invites_acquired += platform_per_response
+            user.platform_invites_banked += platform_per_response
+            
+            user.discussion_invites_acquired += discussion_per_response
+            user.discussion_invites_banked += discussion_per_response
 
             user.save()
 
         return {
-            "platform_invites_earned": platform_diff if platform_diff > 0 else 0,
-            "discussion_invites_earned": discussion_diff if discussion_diff > 0 else 0,
+            "platform_invites_earned": platform_per_response,
+            "discussion_invites_earned": discussion_per_response,
             "total_platform": user.platform_invites_acquired,
             "total_discussion": user.discussion_invites_acquired,
         }
+
+    @staticmethod
+    def earn_invite_from_vote(user: User) -> Tuple[Decimal, int]:
+        """
+        Award voting credits when user participates in voting.
+
+        Awards: 0.2 platform invite + 1 discussion invite
+
+        Added: 2026-02 for voting-based credit system
+
+        Args:
+            user: User who cast any vote during voting phase
+
+        Returns:
+            tuple: (platform_credits_added, discussion_credits_added)
+        """
+        platform_credits = Decimal('0.2')
+        discussion_credits = 1
+
+        with transaction.atomic():
+            user.refresh_from_db()
+
+            user.platform_invites_acquired += platform_credits
+            user.platform_invites_banked += platform_credits
+
+            user.discussion_invites_acquired += discussion_credits
+            user.discussion_invites_banked += discussion_credits
+
+            user.save()
+
+        return (platform_credits, discussion_credits)
 
     @staticmethod
     def _generate_invite_code() -> str:

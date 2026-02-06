@@ -44,31 +44,25 @@ def my_invites(request):
     config = PlatformConfig.objects.get(pk=1)
 
     total_responses = user.responses.count()
-    responses_needed = max(0, config.responses_to_unlock_invites - total_responses)
 
-    can_send_platform = (
-        user.platform_invites_banked > 0
-        and total_responses >= config.responses_to_unlock_invites
-    )
-    can_send_discussion = (
-        user.discussion_invites_banked > 0
-        and total_responses >= config.responses_to_unlock_invites
-    )
+    # No unlock threshold needed - users can send immediately if they have ≥1 invite
+    can_send_platform = user.platform_invites_banked >= 1
+    can_send_discussion = user.discussion_invites_banked >= 1
 
     data = {
         "platform_invites": {
-            "acquired": user.platform_invites_acquired,
+            "acquired": float(user.platform_invites_acquired),
             "used": user.platform_invites_used,
-            "banked": user.platform_invites_banked,
+            "banked": float(user.platform_invites_banked),
             "can_send": can_send_platform,
-            "responses_needed_to_unlock": responses_needed,
+            "responses_needed_to_unlock": 0,  # No unlock threshold
         },
         "discussion_invites": {
-            "acquired": user.discussion_invites_acquired,
+            "acquired": float(user.discussion_invites_acquired),
             "used": user.discussion_invites_used,
-            "banked": user.discussion_invites_banked,
+            "banked": float(user.discussion_invites_banked),
             "can_send": can_send_discussion,
-            "responses_needed_to_unlock": responses_needed,
+            "responses_needed_to_unlock": 0,  # No unlock threshold
         },
         "total_responses": total_responses,
     }
@@ -323,11 +317,13 @@ def user_invite_metrics(request, user_id):
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     # Check invite formula: acquired should equal used + banked
+    # Note: acquired and banked are Decimal, used is int
+    from decimal import Decimal
     platform_penalized = user.platform_invites_acquired != (
-        user.platform_invites_used + user.platform_invites_banked
+        Decimal(user.platform_invites_used) + user.platform_invites_banked
     )
     discussion_penalized = user.discussion_invites_acquired != (
-        user.discussion_invites_used + user.discussion_invites_banked
+        Decimal(user.discussion_invites_used) + user.discussion_invites_banked
     )
 
     is_penalized = platform_penalized or discussion_penalized
@@ -335,16 +331,16 @@ def user_invite_metrics(request, user_id):
     return Response(
         {
             "platform_invites": {
-                "acquired": user.platform_invites_acquired,
+                "acquired": float(user.platform_invites_acquired),
                 "used": user.platform_invites_used,
-                "banked": user.platform_invites_banked,
-                "can_send": user.platform_invites_banked > 0,
+                "banked": float(user.platform_invites_banked),
+                "can_send": user.platform_invites_banked >= 1,
             },
             "discussion_invites": {
-                "acquired": user.discussion_invites_acquired,
+                "acquired": float(user.discussion_invites_acquired),
                 "used": user.discussion_invites_used,
-                "banked": user.discussion_invites_banked,
-                "can_send": user.discussion_invites_banked > 0,
+                "banked": float(user.discussion_invites_banked),
+                "can_send": user.discussion_invites_banked >= 1,
             },
             "is_penalized": is_penalized,
         }

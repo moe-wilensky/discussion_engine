@@ -28,36 +28,19 @@ class TestInviteService:
         """Set up test data."""
         PlatformConfig.objects.get_or_create(pk=1)
 
-    def test_can_send_invite_insufficient_responses(self, user_factory):
-        """Test user cannot send invite without enough responses."""
-        user = user_factory()
-        user.platform_invites_banked = 1
-        user.save()
-
-        # User has no responses
-        can_send, reason = InviteService.can_send_invite(user, "platform")
-
-        assert can_send is False
-        assert "responses" in reason.lower()
-
-    def test_can_send_invite_no_banked(self, user_factory, response_factory):
+    def test_can_send_invite_no_banked(self, user_factory):
         """Test user cannot send invite without banked invites."""
         user = user_factory()
         user.platform_invites_banked = 0
         user.save()
-
-        # Add enough responses
-        config = PlatformConfig.objects.get(pk=1)
-        for _ in range(config.responses_to_unlock_invites):
-            response_factory(user=user)
 
         can_send, reason = InviteService.can_send_invite(user, "platform")
 
         assert can_send is False
         assert "no platform invites available" in reason.lower()
 
-    def test_can_send_invite_success(self, user_factory, response_factory):
-        """Test user can send invite with sufficient requirements."""
+    def test_can_send_invite_success(self, user_factory):
+        """Test user can send invite with sufficient requirements."""""
         user = user_factory()
         user.platform_invites_banked = 1
         user.save()
@@ -71,15 +54,11 @@ class TestInviteService:
         assert can_send is True
         assert reason == ""
 
-    def test_send_platform_invite(self, user_factory, response_factory):
+    def test_send_platform_invite(self, user_factory):
         """Test platform invite creation."""
         user = user_factory()
         user.platform_invites_banked = 1
         user.save()
-
-        config = PlatformConfig.objects.get(pk=1)
-        for _ in range(config.responses_to_unlock_invites):
-            response_factory(user=user)
 
         invite, invite_code = InviteService.send_platform_invite(user)
 
@@ -93,7 +72,7 @@ class TestInviteService:
         assert invite.code is not None
 
     def test_send_platform_invite_consumption_sent(
-        self, user_factory, response_factory
+        self, user_factory
     ):
         """Test invite consumption on send (when configured)."""
         config = PlatformConfig.objects.get(pk=1)
@@ -104,9 +83,6 @@ class TestInviteService:
         user.platform_invites_banked = 1
         user.platform_invites_used = 0
         user.save()
-
-        for _ in range(config.responses_to_unlock_invites):
-            response_factory(user=user)
 
         initial_banked = user.platform_invites_banked
 
@@ -274,19 +250,22 @@ class TestInviteService:
 
     def test_earn_invite_from_response(self, user_factory, response_factory):
         """Test earning invites from responses."""
+        from decimal import Decimal
         user = user_factory()
         config = PlatformConfig.objects.get(pk=1)
 
-        # Create enough responses to earn 2 platform invites
-        num_responses = config.responses_per_platform_invite * 2
-        for _ in range(num_responses):
+        # Submit 5 responses - should earn 1.0 platform invites (0.2 * 5) and 5.0 discussion invites
+        for _ in range(5):
             response_factory(user=user)
-
-        result = InviteService.earn_invite_from_response(user)
+            InviteService.earn_invite_from_response(user)
 
         user.refresh_from_db()
-        assert user.platform_invites_acquired == 2
-        assert user.platform_invites_banked == 2
+        # 0.2 per response * 5 responses = 1.0 platform invite
+        assert user.platform_invites_acquired == Decimal('1.0')
+        assert user.platform_invites_banked == Decimal('1.0')
+        # 1.0 per response * 5 responses = 5.0 discussion invites
+        assert user.discussion_invites_acquired == Decimal('5.0')
+        assert user.discussion_invites_banked == Decimal('5.0')
 
     def test_invite_formula_validation(self, user_factory):
         """Test invite formula: acquired = used + banked."""

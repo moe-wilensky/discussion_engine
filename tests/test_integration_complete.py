@@ -98,7 +98,8 @@ class TestCompleteDiscussionLifecycle:
         )
 
         # Step 4: Add participants (simulating invites accepted)
-        for user in [user_a, user_b, user_c, user_d, user_e, user_f]:
+        # Note: user_a (initiator) already has a participant created by DiscussionFactory
+        for user in [user_b, user_c, user_d, user_e, user_f]:
             DiscussionParticipant.objects.create(
                 discussion=discussion, user=user, role="active"
             )
@@ -215,12 +216,14 @@ class TestModerationEscalation:
             initiator=user_a, topic_headline="Escalation Test", status="active"
         )
 
-        # Add participants
-        participant_a = DiscussionParticipant.objects.create(
-            discussion=discussion, user=user_a, role="initiator"
-        )
+        # Add participant (user_a already has a participant as initiator from factory)
         participant_b = DiscussionParticipant.objects.create(
             discussion=discussion, user=user_b, role="active"
+        )
+
+        # Get the initiator participant
+        participant_a = DiscussionParticipant.objects.get(
+            discussion=discussion, user=user_a
         )
 
         # Verify participants exist

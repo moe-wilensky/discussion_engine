@@ -48,6 +48,18 @@ class TestMutualRemoval:
             discussion=discussion, user=user_b, role="active"
         )
 
+        # Both users must post in current round before using kamikaze
+        Response.objects.create(
+            user=user_a,
+            round=round_obj,
+            content="Response from user A"
+        )
+        Response.objects.create(
+            user=user_b,
+            round=round_obj,
+            content="Response from user B"
+        )
+
         # Execute mutual removal
         moderation_action = MutualRemovalService.initiate_removal(
             initiator=user_a,
@@ -94,6 +106,14 @@ class TestMutualRemoval:
                 discussion=discussion, user=user, role="active"
             )
 
+        # Both users must post before using kamikaze
+        Response.objects.create(
+            user=user_a, round=round_obj, content="Response A"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B"
+        )
+
         # First removal
         MutualRemovalService.initiate_removal(user_a, user_b, discussion, round_obj)
         participant_b = DiscussionParticipant.objects.get(
@@ -105,6 +125,14 @@ class TestMutualRemoval:
         participant_b.role = "active"
         participant_b.save()
 
+        # Create responses for second kamikaze
+        Response.objects.create(
+            user=user_c, round=round_obj, content="Response C"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B2"
+        )
+
         # Second removal
         MutualRemovalService.initiate_removal(user_c, user_b, discussion, round_obj)
         participant_b.refresh_from_db()
@@ -113,6 +141,14 @@ class TestMutualRemoval:
         # Rejoin
         participant_b.role = "active"
         participant_b.save()
+
+        # Create responses for third kamikaze
+        Response.objects.create(
+            user=user_d, round=round_obj, content="Response D"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B3"
+        )
 
         # Third removal - becomes permanent
         MutualRemovalService.initiate_removal(user_d, user_b, discussion, round_obj)
@@ -136,6 +172,14 @@ class TestMutualRemoval:
         # Get initiator (already exists) and create user_b
         DiscussionParticipant.objects.create(
             discussion=discussion, user=user_b, role="active"
+        )
+
+        # Both users must post before using kamikaze
+        Response.objects.create(
+            user=user_a, round=round_obj, content="Response A"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B"
         )
 
         # First removal
@@ -252,6 +296,14 @@ class TestNotifications:
         for user in [user_a, user_b]:
             NotificationService.create_notification_preferences(user)
 
+        # Both users must post before using kamikaze
+        Response.objects.create(
+            user=user_a, round=round_obj, content="Response A"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B"
+        )
+
         # Execute mutual removal
         MutualRemovalService.initiate_removal(user_a, user_b, discussion, round_obj)
 
@@ -292,6 +344,14 @@ class TestIntegration:
         for user in [user_a, user_b, user_c, user_d]:
             NotificationService.create_notification_preferences(user)
 
+        # Both users must post before using kamikaze
+        Response.objects.create(
+            user=user_a, round=round_obj, content="Response A"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B"
+        )
+
         # User A removes User B
         MutualRemovalService.initiate_removal(user_a, user_b, discussion, round_obj)
 
@@ -318,6 +378,14 @@ class TestIntegration:
         participant_b.role = "active"
         participant_a.save()
         participant_b.save()
+
+        # Create responses for second kamikaze
+        Response.objects.create(
+            user=user_c, round=round_obj, content="Response C"
+        )
+        Response.objects.create(
+            user=user_b, round=round_obj, content="Response B2"
+        )
 
         # User C removes User B (2nd time)
         MutualRemovalService.initiate_removal(user_c, user_b, discussion, round_obj)

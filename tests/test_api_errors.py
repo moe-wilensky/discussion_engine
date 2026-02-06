@@ -73,11 +73,11 @@ class TestInviteAPIErrors:
     def test_send_platform_invite_insufficient_responses(
         self, authenticated_client, user_factory
     ):
-        """Test sending platform invite without enough responses."""
+        """Test sending platform invite without enough invites available."""
         response = authenticated_client.post("/api/invites/platform/send/")
 
         assert response.status_code == 400
-        assert "responses" in response.data["error"].lower()
+        assert "no platform invites available" in response.data["error"].lower()
 
     def test_send_discussion_invite_invalid_discussion(
         self, authenticated_client, user_factory

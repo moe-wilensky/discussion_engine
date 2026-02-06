@@ -4,6 +4,16 @@
 {% block title %}Vote on Changes{% endblock %}
 
 {% block content %}
+<style>
+.join-request-card button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.join-request-card button:disabled:hover {
+    background-color: inherit;
+}
+</style>
+
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-6">
         <a href="{% url 'discussion-detail' discussion.id %}" class="text-blue-600 hover:text-blue-800 flex items-center">
@@ -76,15 +86,72 @@
             </div>
         </div>
 
-        <!-- Section 2: Moderation Votes -->
+        <!-- Section 2: Join Request Voting -->
+        {% if pending_join_requests %}
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">2. Pending Join Requests</h2>
+            <p class="text-sm text-gray-600 mb-6">
+                Vote to approve or deny pending join requests.
+                Majority vote (&gt;50%) required for approval.
+            </p>
+
+            <div class="space-y-4">
+                {% for request in pending_join_requests %}
+                <div class="border border-gray-200 rounded-lg p-4 join-request-card" data-request-id="{{ request.id }}">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-medium">{{ request.user.username }}</h3>
+                            <p class="text-xs text-gray-500">Requested: {{ request.requested_at|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+
+                    {% if request.message %}
+                    <div class="bg-gray-50 rounded p-3 mb-3">
+                        <p class="text-sm text-gray-700 italic">"{{ request.message }}"</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="flex gap-3 mb-3">
+                        <button
+                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium btn-approve"
+                            onclick="voteJoinRequest('{{ request.id }}', true)"
+                            {% if request.user_has_voted %}disabled{% endif %}>
+                            {% if request.user_has_voted and request.user_vote_approve %}✓ {% endif %}Approve
+                        </button>
+                        <button
+                            class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium btn-deny"
+                            onclick="voteJoinRequest('{{ request.id }}', false)"
+                            {% if request.user_has_voted %}disabled{% endif %}>
+                            {% if request.user_has_voted and not request.user_vote_approve %}✓ {% endif %}Deny
+                        </button>
+                    </div>
+
+                    <div class="flex gap-4 text-sm text-gray-600">
+                        <span class="approve-count">
+                            👍 <span class="count font-medium" data-type="approve">{{ request.approve_votes }}</span>
+                        </span>
+                        <span class="deny-count">
+                            👎 <span class="count font-medium" data-type="deny">{{ request.deny_votes }}</span>
+                        </span>
+                        <span class="total-votes text-gray-500">
+                            ({{ request.total_votes }} vote{{ request.total_votes|pluralize }})
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Section 3: Moderation Votes -->
         {% if removal_targets %}
         <div class="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">2. Remove Participants</h2>
+            <h2 class="text-xl font-semibold mb-4">3. Remove Participants</h2>
             <p class="text-sm text-gray-600 mb-6">
                 Vote to remove participants who are disruptive. Removal requires {{ removal_threshold }}% agreement.
                 Removed participants become permanent observers.
             </p>
-            
+
             <div class="space-y-4">
                 {% for target in removal_targets %}
                 <div class="border border-gray-200 rounded-lg p-4">
@@ -94,7 +161,7 @@
                             <p class="text-sm text-gray-600">{{ target.response_count }} responses in this discussion</p>
                         </div>
                     </div>
-                    
+
                     <div class="flex gap-4">
                         <label class="flex items-center">
                             <input type="radio" name="removal_{{ target.id }}" value="remove" class="mr-2">
@@ -105,7 +172,7 @@
                             <span>Keep</span>
                         </label>
                     </div>
-                    
+
                     <div class="mt-2 text-xs text-gray-500">
                         Current votes: <span class="font-medium">{{ target.removal_votes }}</span> of {{ eligible_voters }} eligible voters
                     </div>
@@ -146,18 +213,18 @@ const votingDeadline = new Date('{{ voting_deadline|date:"c" }}');
 function updateCountdown() {
     const now = new Date();
     const remaining = votingDeadline - now;
-    
+
     if (remaining <= 0) {
         document.getElementById('voting-countdown').textContent = 'EXPIRED';
         document.getElementById('deadline-display').textContent = 'EXPIRED';
         document.getElementById('voting-form').innerHTML = '<div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center"><p class="text-red-800 font-medium">Voting window has closed.</p></div>';
         return;
     }
-    
+
     const hours = Math.floor(remaining / (1000 * 60 * 60));
     const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-    
+
     const display = `${hours}h ${minutes}m ${seconds}s`;
     document.getElementById('voting-countdown').textContent = display;
     document.getElementById('deadline-display').textContent = display;
@@ -165,5 +232,75 @@ function updateCountdown() {
 
 setInterval(updateCountdown, 1000);
 updateCountdown();
+
+// Join Request Voting
+function voteJoinRequest(requestId, approve) {
+    const discussionId = '{{ discussion.id }}';
+    const url = `/api/discussions/${discussionId}/vote/join-request/${requestId}/`;
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({ approve: approve })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw err; });
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Update UI with new vote counts
+        const card = document.querySelector(`[data-request-id="${requestId}"]`);
+        if (!card) return;
+
+        card.querySelector('[data-type="approve"]').textContent = data.vote_counts.approve;
+        card.querySelector('[data-type="deny"]').textContent = data.vote_counts.deny;
+        card.querySelector('.total-votes').textContent =
+            `(${data.vote_counts.total} vote${data.vote_counts.total !== 1 ? 's' : ''})`;
+
+        // Disable buttons
+        card.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+        // Mark user's choice
+        const approveBtn = card.querySelector('.btn-approve');
+        const denyBtn = card.querySelector('.btn-deny');
+        if (approve) {
+            approveBtn.innerHTML = '✓ Approve';
+            approveBtn.classList.add('opacity-80');
+        } else {
+            denyBtn.innerHTML = '✓ Deny';
+            denyBtn.classList.add('opacity-80');
+        }
+
+        // Show success message
+        showNotification('Vote recorded successfully', 'success');
+    })
+    .catch(error => {
+        console.error('Vote error:', error);
+        showNotification(error.error || 'Failed to record vote', 'error');
+    });
+}
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+           document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+}
+
+function showNotification(message, type) {
+    // Simple notification system - could be enhanced
+    const color = type === 'success' ? 'green' : 'red';
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 bg-${color}-50 border border-${color}-200 text-${color}-800 px-6 py-3 rounded-lg shadow-lg z-50`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
 </script>
 {% endblock %}

@@ -12,6 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 from typing import List, Optional, Tuple
 import statistics
+import uuid
 
 
 class User(AbstractUser):
@@ -24,15 +25,15 @@ class User(AbstractUser):
 
     phone_number = models.CharField(max_length=20, unique=True)
 
-    # Platform invite tracking
-    platform_invites_acquired = models.IntegerField(default=0)
+    # Platform invite tracking (using Decimal for fractional invites: 0.2 per response)
+    platform_invites_acquired = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     platform_invites_used = models.IntegerField(default=0)
-    platform_invites_banked = models.IntegerField(default=0)
+    platform_invites_banked = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    # Discussion invite tracking
-    discussion_invites_acquired = models.IntegerField(default=0)
+    # Discussion invite tracking (whole numbers: 1 per response)
+    discussion_invites_acquired = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discussion_invites_used = models.IntegerField(default=0)
-    discussion_invites_banked = models.IntegerField(default=0)
+    discussion_invites_banked = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     # Permissions and preferences
     is_platform_admin = models.BooleanField(default=False)
@@ -132,9 +133,13 @@ class PlatformConfig(models.Model):
     """
 
     # Invite configuration
-    new_user_platform_invites = models.IntegerField(default=3)
-    new_user_discussion_invites = models.IntegerField(default=5)
-    responses_to_unlock_invites = models.IntegerField(default=3)
+    new_user_platform_invites = models.IntegerField(default=5)
+    new_user_discussion_invites = models.IntegerField(default=25)
+    responses_to_unlock_invites = models.IntegerField(default=0)  # No unlock threshold needed
+    # Fractional invite earning per response (0.2 platform, 1 discussion)
+    platform_invites_per_response = models.DecimalField(max_digits=5, decimal_places=2, default=0.2)
+    discussion_invites_per_response = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)
+    # Deprecated fields (kept for migration compatibility)
     responses_per_platform_invite = models.IntegerField(default=10)
     responses_per_discussion_invite = models.IntegerField(default=5)
 
@@ -374,6 +379,7 @@ class DiscussionParticipant(models.Model):
     posted_in_round_when_removed = models.BooleanField(default=False)
     removal_count = models.IntegerField(default=0)  # Times user initiated removal
     times_removed = models.IntegerField(default=0)  # Times user was removed by others
+    skip_invite_credits_on_return = models.BooleanField(default=False)  # Don't award invites on first response after observer return
 
     # Permissions
     can_invite_others = models.BooleanField(default=True)
@@ -397,48 +403,50 @@ class DiscussionParticipant(models.Model):
         if self.role != "temporary_observer":
             return False
 
+        # Get the latest in-progress round
+        current_round = (
+            self.discussion.rounds.filter(status="in_progress")
+            .order_by("-round_number")
+            .first()
+        )
+
+        if not current_round or not self.observer_since:
+            return False
+
+        # Find the round when removal occurred
+        removal_round = (
+            self.discussion.rounds.filter(start_time__lte=self.observer_since)
+            .order_by("-start_time")
+            .first()
+        )
+
+        if not removal_round:
+            return False
+
         if self.observer_reason == "mrp_expired":
             # Can rejoin immediately if posted in removal round
             if self.posted_in_round_when_removed:
                 return True
             # Otherwise must wait until next round
-            # Get the latest in-progress round
-            current_round = (
-                self.discussion.rounds.filter(status="in_progress")
-                .order_by("-round_number")
-                .first()
-            )
-            if current_round and self.observer_since:
-                # Find the round when removal occurred (round where observer_since falls)
-                removal_round = (
-                    self.discussion.rounds.filter(start_time__lte=self.observer_since)
-                    .order_by("-start_time")
-                    .first()
-                )
-                # Can rejoin if we're in a later round
-                if (
-                    removal_round
-                    and current_round.round_number > removal_round.round_number
-                ):
-                    return True
+            return current_round.round_number > removal_round.round_number
 
         elif self.observer_reason == "mutual_removal":
-            # Wait period based on removal count
-            if not self.observer_since:
-                return False
+            # NEW MECHANICS: Must miss the entire next full round
+            # If removed in round N:
+            # - If posted before removal: can rejoin in round N+2 (skip round N+1 entirely)
+            # - If didn't post: can rejoin in round N+1 after 1 MRP
 
-            wait_periods = {
-                1: timedelta(hours=24),
-                2: timedelta(days=7),
-            }
-            # Third removal and beyond = effectively permanent (365 days)
-            wait_period = wait_periods.get(self.removal_count, timedelta(days=365))
-
-            # For third removal (count >= 3), never allow rejoin
-            if self.removal_count >= 3:
-                return False
-
-            if timezone.now() >= self.observer_since + wait_period:
+            if self.posted_in_round_when_removed:
+                # Must skip next full round, can rejoin in round N+2
+                rejoin_round_number = removal_round.round_number + 2
+                return current_round.round_number >= rejoin_round_number
+            else:
+                # Didn't post before kamikaze: can rejoin in next round after 1 MRP
+                # (similar to MRP expiration case)
+                next_round_number = removal_round.round_number + 1
+                if current_round.round_number < next_round_number:
+                    return False
+                # In the next round or later, can rejoin (MRP check handled elsewhere)
                 return True
 
         elif self.observer_reason == "vote_based_removal":
@@ -457,19 +465,47 @@ class DiscussionParticipant(models.Model):
         if self.role != "temporary_observer" or not self.observer_since:
             return None
 
+        # Find the round when removal occurred
+        removal_round = (
+            self.discussion.rounds.filter(start_time__lte=self.observer_since)
+            .order_by("-start_time")
+            .first()
+        )
+
+        if not removal_round:
+            return None
+
         if self.observer_reason == "mrp_expired":
             if self.posted_in_round_when_removed:
                 return self.observer_since  # Can rejoin immediately
             # Return start of next round (approximation)
-            return self.observer_since + timedelta(hours=24)
+            next_round = (
+                self.discussion.rounds.filter(
+                    round_number=removal_round.round_number + 1
+                )
+                .first()
+            )
+            return next_round.start_time if next_round else self.observer_since + timedelta(hours=24)
 
         elif self.observer_reason == "mutual_removal":
-            wait_periods = {
-                1: timedelta(hours=24),
-                2: timedelta(days=7),
-            }
-            wait_period = wait_periods.get(self.removal_count, timedelta(days=365))
-            return self.observer_since + wait_period
+            if self.posted_in_round_when_removed:
+                # Must skip next full round, can rejoin in round N+2
+                rejoin_round = (
+                    self.discussion.rounds.filter(
+                        round_number=removal_round.round_number + 2
+                    )
+                    .first()
+                )
+                return rejoin_round.start_time if rejoin_round else None
+            else:
+                # Can rejoin in next round after 1 MRP
+                next_round = (
+                    self.discussion.rounds.filter(
+                        round_number=removal_round.round_number + 1
+                    )
+                    .first()
+                )
+                return next_round.start_time if next_round else None
 
         return None
 
@@ -503,6 +539,15 @@ class Round(models.Model):
         ],
         default="in_progress",
     )
+
+    # NEW: Track which users received voting credits this round (prevents double-awarding)
+    voting_credits_awarded = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of user IDs who received voting credits this round"
+    )
+    # Stores list of user IDs who received voting credits in this voting session
+    # CRITICAL: This field prevents credit gaming by ensuring one award per user per session
 
     class Meta:
         db_table = "rounds"
@@ -922,6 +967,31 @@ class JoinRequest(models.Model):
 
     def __str__(self):
         return f"Join request by {self.requester.username} for {self.discussion.topic_headline}"
+
+
+class JoinRequestVote(models.Model):
+    """
+    Tracks votes for/against join requests during inter-round voting.
+
+    Added: 2026-02 to implement voting-based join request approval
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    round = models.ForeignKey(Round, on_delete=models.CASCADE, related_name='join_request_votes')
+    voter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='join_request_votes_cast')
+    join_request = models.ForeignKey(JoinRequest, on_delete=models.CASCADE, related_name='votes')
+    approve = models.BooleanField()  # True = approve, False = deny
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'join_request_votes'
+        unique_together = [['round', 'voter', 'join_request']]
+        indexes = [
+            models.Index(fields=['round', 'join_request'], name='idx_jrv_round_request'),
+            models.Index(fields=['voter', 'voted_at'], name='idx_jrv_voter_time'),
+        ]
+
+    def __str__(self):
+        return f"{self.voter.username} votes {'approve' if self.approve else 'deny'} for {self.join_request}"
 
 
 class ResponseEdit(models.Model):

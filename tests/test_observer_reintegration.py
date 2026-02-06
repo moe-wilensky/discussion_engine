@@ -249,7 +249,7 @@ class TestObserverReintegration:
         can_rejoin, reason = ObserverService.can_rejoin(participant, round1)
 
         assert can_rejoin is False
-        assert "wait_for_next_round" in reason
+        assert "must_skip_round_2_rejoin_in_round_3" in reason
 
     def test_scenario_4_mrp_expiration(self, setup_observer_scenario):
         """Scenario 4: MRP expiration -> must wait until 1 MRP in NEXT round"""

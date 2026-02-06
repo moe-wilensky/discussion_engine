@@ -443,3 +443,103 @@ def rejoin_discussion(request, discussion_id):
         )
     except ValueError as e:
         return APIResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def vote_join_request(request, discussion_id, join_request_id):
+    """
+    Cast a vote on a pending join request during voting phase.
+
+    POST /api/discussions/<id>/vote/join-request/<request_id>/
+
+    Body: {"approve": true/false}
+
+    Returns:
+        200: Vote recorded
+        400: Invalid request (already voted, not in voting phase, etc.)
+        403: Not a participant
+        404: Discussion or join request not found
+
+    Added: 2026-02 for voting-based join request approval
+    """
+    from core.models import JoinRequest
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    # Get discussion and verify exists (raises Http404 if not found)
+    discussion = get_object_or_404(Discussion, id=discussion_id)
+
+    # Verify user is active participant
+    participation = DiscussionParticipant.objects.filter(
+        discussion=discussion,
+        user=request.user,
+        role__in=['active', 'initiator']
+    ).first()
+
+    if not participation:
+        return APIResponse(
+            {'error': 'Must be an active participant to vote'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Get current round and verify voting phase
+    current_round = discussion.rounds.filter(
+        status='voting'
+    ).order_by('-round_number').first()
+
+    if not current_round:
+        return APIResponse(
+            {'error': 'Discussion is not in voting phase'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get join request (raises Http404 if not found)
+    join_request = get_object_or_404(
+        JoinRequest,
+        id=join_request_id,
+        discussion=discussion,
+        status='pending'
+    )
+
+    # Parse vote
+    approve = request.data.get('approve')
+
+    if approve is None:
+        return APIResponse(
+            {'error': 'Must specify "approve" as true or false'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Record vote
+        vote = VotingService.record_join_request_vote(
+            round_obj=current_round,
+            voter=request.user,
+            join_request=join_request,
+            approve=approve
+        )
+
+        # Get updated vote counts
+        vote_counts = VotingService.get_join_request_vote_counts(
+            current_round,
+            join_request
+        )
+
+        return APIResponse({
+            'status': 'success',
+            'message': 'Vote recorded',
+            'vote': {
+                'id': str(vote.id),
+                'approve': vote.approve,
+                'voted_at': vote.voted_at.isoformat()
+            },
+            'vote_counts': vote_counts
+        })
+
+    except DjangoValidationError as e:
+        return APIResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return APIResponse(
+            {'error': f'Server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

@@ -286,11 +286,17 @@ class RoundService:
                     participant.observer_reason = "mrp_expired"
                     participant.posted_in_round_when_removed = posted_in_round
                     participant.removal_count += 1
+                    # Skip invite credits on return if didn't post
+                    participant.skip_invite_credits_on_return = not posted_in_round
                     participant.save()
 
-            # Check if we should archive (≤1 response total)
+            # Check if we should archive (≤1 response total OR ≤1 active participant)
             total_responses = round.responses.count()
-            if total_responses <= 1:
+            active_count = DiscussionParticipant.objects.filter(
+                discussion=round.discussion, role__in=["initiator", "active"]
+            ).count()
+            
+            if total_responses <= 1 or active_count <= 1:
                 discussion = round.discussion
                 discussion.status = "archived"
                 discussion.archived_at = timezone.now()

@@ -72,8 +72,8 @@ class TestPhase1:
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion)
 
-        # Only 3 participants (< 10)
-        users = [UserFactory() for _ in range(3)]
+        # Add 2 more participants (3 total including initiator from DiscussionFactory)
+        users = [UserFactory() for _ in range(2)]
         for user in users:
             DiscussionParticipantFactory(
                 discussion=discussion, user=user, role="active"
@@ -82,9 +82,11 @@ class TestPhase1:
         # Should be Phase 1
         assert RoundService.is_phase_1(round_obj, config) is True
 
-        # Add 3 responses
+        # Add 3 responses from all 3 participants
+        initiator = discussion.initiator
+        ResponseService.submit_response(initiator, round_obj, "Response 0")
         for i, user in enumerate(users):
-            ResponseService.submit_response(user, round_obj, f"Response {i}")
+            ResponseService.submit_response(user, round_obj, f"Response {i+1}")
 
         # Should now be Phase 2 (N = min(10, 3) = 3)
         round_obj.refresh_from_db()

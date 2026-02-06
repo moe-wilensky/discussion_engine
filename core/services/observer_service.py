@@ -26,12 +26,27 @@ class ObserverService:
         - Set observer_since = now
         - Set observer_reason
         - Set posted_in_round_when_removed
+        - Set skip_invite_credits_on_return based on mechanics:
+          * MRP expired + didn't post: skip credits (rule 3)
+          * Mutual removal (kamikaze): ALWAYS skip credits (rule 4)
         """
         with transaction.atomic():
             participant.role = "temporary_observer"
             participant.observer_since = timezone.now()
             participant.observer_reason = reason
             participant.posted_in_round_when_removed = posted_in_round
+            
+            # Mechanics rule 3: If active participant moved to observer during conversation
+            # (due to not responding within MRP), don't receive invite credits for first response upon returning
+            # Mechanics rule 4: If 2 users are moved to observers via kamikaze, they both miss next full round
+            # and do not get invite credits when they rejoin
+            if reason == "mrp_expired" and not posted_in_round:
+                participant.skip_invite_credits_on_return = True
+            elif reason == "mutual_removal":
+                # Kamikaze: ALWAYS skip credits regardless of whether they posted
+                participant.skip_invite_credits_on_return = True
+            else:
+                participant.skip_invite_credits_on_return = False
 
             if reason == "mutual_removal":
                 participant.removal_count += 1
@@ -128,11 +143,23 @@ class ObserverService:
                 return False, "round_logic_error"
 
         # 3. Mutual removal AFTER posting in current round
-        # 4. MRP expiration (didn't post in round)
+        # Mechanics: Must miss the ENTIRE next full round
         if (
             participant.observer_reason == "mutual_removal"
             and participant.posted_in_round_when_removed
-        ) or (participant.observer_reason == "mrp_expired"):
+        ):
+            # Must skip the next full round, can rejoin in round N+2
+            skip_round_number = removal_round.round_number + 1
+            rejoin_round_number = removal_round.round_number + 2
+
+            if current_round.round_number < rejoin_round_number:
+                return False, f"must_skip_round_{skip_round_number}_rejoin_in_round_{rejoin_round_number}"
+            else:
+                # In round N+2 or later, can rejoin
+                return True, ""
+
+        # 4. MRP expiration (didn't post in round)
+        if participant.observer_reason == "mrp_expired":
             # Must wait until 1 MRP has elapsed in NEXT round
             next_round_number = removal_round.round_number + 1
 

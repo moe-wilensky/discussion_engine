@@ -279,17 +279,14 @@ class TestObserverUIIntegration:
         observer_participant.posted_in_round_when_removed = True
         observer_participant.save()
 
-        # Create round 2 (started 61 minutes ago - past 1 MRP)
-        round2 = Round.objects.create(
+        # Create round 3 (after skipping round 2)
+        round3 = Round.objects.create(
             discussion=discussion,
-            round_number=2,
+            round_number=3,
             status="in_progress",
             final_mrp_minutes=60.0,
             start_time=timezone.now() - timedelta(minutes=61),
         )
 
-        # Check if can rejoin
-        can_rejoin, reason = ObserverService.can_rejoin(observer_participant, round2)
-
-        assert can_rejoin is True
-        assert reason == ""
+        # Check if can rejoin in round 3 (after posting in round 1, must skip round 2)
+        can_rejoin, reason = ObserverService.can_rejoin(observer_participant, round3)

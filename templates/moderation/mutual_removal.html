@@ -1,78 +1,73 @@
-<!-- Mutual Removal Confirmation Dialog (Modal) -->
-<div id="mutual-removal-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Confirm Mutual Removal</h3>
-            
-            <div class="mb-6">
-                <p class="text-sm text-gray-700 mb-4">
-                    You are about to initiate mutual removal with <span id="target-username" class="font-semibold"></span>.
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Feature Deprecated{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="deprecation-notice bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-lg">
+        <div class="p-8">
+            <div class="flex items-center mb-4">
+                <svg class="w-12 h-12 text-yellow-600 mr-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <h1 class="text-3xl font-bold text-yellow-800">Feature Deprecated</h1>
+            </div>
+
+            <div class="notice-content space-y-6">
+                <p class="text-lg text-yellow-800">
+                    The mutual removal (kamikaze) feature has been removed from the platform
+                    as of February 2026.
                 </p>
-                
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                    <p class="text-sm text-yellow-800 font-medium mb-2">⚠️ Consequences:</p>
-                    <ul class="text-sm text-yellow-700 space-y-1 list-disc list-inside">
-                        <li>Both you and <span id="target-username-2"></span> will become temporary observers</li>
-                        <li>You will rejoin after <span id="mrp-period">1 MRP</span></li>
-                        <li>This action cannot be undone</li>
-                    </ul>
-                </div>
-                
-                <div id="escalation-warning" class="bg-red-50 border border-red-200 rounded-lg p-4 hidden">
-                    <p class="text-sm text-red-800 font-medium mb-2">⚠️ Escalation Warning:</p>
-                    <p class="text-sm text-red-700">
-                        You have used <span id="removal-count" class="font-bold"></span> of 3 allowed removals.
-                        <span id="permanent-warning" class="hidden">
-                            <strong>If you initiate 3 removals, you will become a permanent observer and lose all platform invites.</strong>
-                        </span>
+
+                <div class="bg-white border border-yellow-300 rounded-lg p-6">
+                    <h2 class="text-lg font-semibold text-yellow-900 mb-3">
+                        For removing problematic participants:
+                    </h2>
+                    <p class="text-yellow-800">
+                        Use the <strong>removal voting system</strong> during inter-round voting phases.
+                        This allows all active participants to vote democratically on
+                        whether to remove a user.
                     </p>
                 </div>
-            </div>
-            
-            <form method="post" id="removal-form">
-                {% csrf_token %}
-                <input type="hidden" name="target_user_id" id="target-user-id">
-                <input type="hidden" name="action" value="mutual_removal">
-                
-                <div class="flex justify-end gap-3">
-                    <button 
-                        type="button" 
-                        onclick="closeMutualRemovalModal()"
-                        class="btn btn-outline"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        type="submit" 
-                        class="btn btn-danger"
-                    >
-                        Confirm Removal
-                    </button>
+
+                <div class="bg-white border border-yellow-300 rounded-lg p-6">
+                    <h2 class="text-lg font-semibold text-yellow-900 mb-3">
+                        Historical records:
+                    </h2>
+                    <p class="text-yellow-800">
+                        All existing mutual removal records are maintained for data integrity
+                        and can still be viewed in discussion histories and moderation logs.
+                    </p>
                 </div>
-            </form>
+
+                <div class="flex justify-center mt-8">
+                    <a href="{% url 'discussion-list' %}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Return to Discussions
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<script>
-function showMutualRemovalModal(targetUserId, targetUsername, removalCount, mrpPeriod) {
-    document.getElementById('target-user-id').value = targetUserId;
-    document.getElementById('target-username').textContent = targetUsername;
-    document.getElementById('target-username-2').textContent = targetUsername;
-    document.getElementById('mrp-period').textContent = mrpPeriod;
-    document.getElementById('removal-count').textContent = removalCount;
-    
-    if (removalCount >= 2) {
-        document.getElementById('escalation-warning').classList.remove('hidden');
-        if (removalCount === 2) {
-            document.getElementById('permanent-warning').classList.remove('hidden');
-        }
-    }
-    
-    document.getElementById('mutual-removal-modal').classList.remove('hidden');
+<style>
+.deprecation-notice {
+    animation: fadeIn 0.3s ease-in;
 }
 
-function closeMutualRemovalModal() {
-    document.getElementById('mutual-removal-modal').classList.add('hidden');
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
-</script>
+</style>
+{% endblock %}

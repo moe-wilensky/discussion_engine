@@ -1,7 +1,12 @@
 """
-Join request service for discussion participation requests.
+JoinRequestService handles join request lifecycle.
 
-Handles observer requests to join active discussions.
+Updated 2026-02: Join requests are now approved via majority vote (>50%)
+during inter-round voting phases, not by initiator decision.
+
+Legacy: approve_request() and decline_request() methods still exist for
+system-initiated approvals (e.g., vote outcomes) but should not be
+called directly by user actions.
 """
 
 from django.core.exceptions import ValidationError
@@ -96,13 +101,13 @@ class JoinRequestService:
         return join_request
 
     @staticmethod
-    def approve_request(request: JoinRequest, approver: User) -> DiscussionParticipant:
+    def approve_request(request: JoinRequest, approved_by: User = None) -> DiscussionParticipant:
         """
         Approve join request.
 
         Args:
             request: JoinRequest to approve
-            approver: User approving the request
+            approved_by: User approving the request (None for system-initiated approvals)
 
         Returns:
             Created DiscussionParticipant object
@@ -114,17 +119,18 @@ class JoinRequestService:
         if request.status != "pending":
             raise ValidationError("Request has already been processed")
 
-        # Validate approver has authority
-        if request.approver.id != approver.id:
-            # Check if approver is discussion initiator or active participant
-            is_participant = DiscussionParticipant.objects.filter(
-                discussion=request.discussion, user=approver, role__in=["initiator", "active"]
-            ).exists()
+        # Validate approver has authority (skip if system-initiated)
+        if approved_by is not None:
+            if request.approver.id != approved_by.id:
+                # Check if approver is discussion initiator or active participant
+                is_participant = DiscussionParticipant.objects.filter(
+                    discussion=request.discussion, user=approved_by, role__in=["initiator", "active"]
+                ).exists()
 
-            if not is_participant:
-                raise ValidationError(
-                    "You do not have permission to approve this request"
-                )
+                if not is_participant:
+                    raise ValidationError(
+                        "You do not have permission to approve this request"
+                    )
 
         # Check if discussion still has space
         config = PlatformConfig.objects.get(pk=1)
@@ -155,14 +161,14 @@ class JoinRequestService:
 
     @staticmethod
     def decline_request(
-        request: JoinRequest, approver: User, message: str = ""
+        request: JoinRequest, approver: User = None, message: str = ""
     ) -> None:
         """
         Decline join request.
 
         Args:
             request: JoinRequest to decline
-            approver: User declining the request
+            approver: User declining the request (None for system-initiated denials)
             message: Optional message to requester
 
         Raises:
@@ -172,16 +178,17 @@ class JoinRequestService:
         if request.status != "pending":
             raise ValidationError("Request has already been processed")
 
-        # Validate approver has authority
-        if request.approver.id != approver.id:
-            is_participant = DiscussionParticipant.objects.filter(
-                discussion=request.discussion, user=approver, role__in=["initiator", "active"]
-            ).exists()
+        # Validate approver has authority (skip if system-initiated)
+        if approver is not None:
+            if request.approver.id != approver.id:
+                is_participant = DiscussionParticipant.objects.filter(
+                    discussion=request.discussion, user=approver, role__in=["initiator", "active"]
+                ).exists()
 
-            if not is_participant:
-                raise ValidationError(
-                    "You do not have permission to decline this request"
-                )
+                if not is_participant:
+                    raise ValidationError(
+                        "You do not have permission to decline this request"
+                    )
 
         # Update request status
         request.status = "declined"

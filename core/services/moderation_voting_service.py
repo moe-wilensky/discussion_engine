@@ -79,6 +79,11 @@ class ModerationVotingService:
                 )
                 votes_cast.append(vote)
 
+            # Award voting credits (once per user per voting session)
+            if votes_cast:  # Only if at least one vote was cast
+                from core.services.voting_service import VotingService
+                VotingService._award_voting_credits(round, voter)
+
         return votes_cast
 
     @staticmethod
@@ -184,3 +189,19 @@ class ModerationVotingService:
                     removed_users.append(target)
 
         return removed_users
+
+    @staticmethod
+    def process_removal_votes(round: Round) -> List[User]:
+        """
+        Process removal votes after voting window closes.
+
+        Wrapper around resolve_removal_votes for consistent naming.
+
+        Args:
+            round: The Round that just ended voting
+
+        Returns:
+            List of removed users
+        """
+        config = PlatformConfig.load()
+        return ModerationVotingService.resolve_removal_votes(round, config)

@@ -11,6 +11,7 @@ from typing import Dict, Optional
 import math
 
 from core.models import Round, Vote, User, Discussion, PlatformConfig, Response
+from core.services.invite_service import InviteService
 
 
 class VotingService:
@@ -57,6 +58,37 @@ class VotingService:
         return eligible
 
     @staticmethod
+    def _award_voting_credits(round_obj: Round, voter: User) -> bool:
+        """
+        Award voting credits to a user if they haven't received them this round.
+
+        Credits are awarded ONCE per voting session regardless of how many votes cast.
+        Uses Round.voting_credits_awarded to track who has received credits.
+
+        Args:
+            round_obj: The Round instance for current voting session
+            voter: User who cast a vote
+
+        Returns:
+            bool: True if credits awarded, False if already awarded this session
+        """
+        # Early return if already awarded
+        awarded_user_ids = round_obj.voting_credits_awarded or []
+        if voter.id in awarded_user_ids:
+            return False
+
+        # Award credits
+        InviteService.earn_invite_from_vote(voter)
+
+        # Track that credits were awarded
+        if round_obj.voting_credits_awarded is None:
+            round_obj.voting_credits_awarded = []
+        round_obj.voting_credits_awarded.append(voter.id)
+        round_obj.save(update_fields=['voting_credits_awarded'])
+
+        return True
+
+    @staticmethod
     def cast_parameter_vote(
         user: User, round: Round, mrl_vote: str, rtm_vote: str
     ) -> Vote:
@@ -88,6 +120,9 @@ class VotingService:
                 "rtm_vote": rtm_vote,
             },
         )
+
+        # Award voting credits
+        VotingService._award_voting_credits(round, user)
 
         return vote
 
@@ -243,3 +278,191 @@ class VotingService:
             round.save()
 
             # Next round creation is handled by MultiRoundService
+
+    @staticmethod
+    def record_join_request_vote(round_obj, voter, join_request, approve):
+        """
+        Record a vote on a pending join request.
+
+        Args:
+            round_obj: Current Round instance
+            voter: User casting the vote
+            join_request: JoinRequest instance being voted on
+            approve: bool, True to approve, False to deny
+
+        Returns:
+            JoinRequestVote: The created vote
+
+        Raises:
+            ValidationError: If voter already voted on this request in this round
+        """
+        from core.models import JoinRequestVote
+        from django.core.exceptions import ValidationError
+
+        # Check for existing vote
+        existing = JoinRequestVote.objects.filter(
+            round=round_obj,
+            voter=voter,
+            join_request=join_request
+        ).exists()
+
+        if existing:
+            raise ValidationError(f"User {voter.username} already voted on this join request")
+
+        # Create vote
+        vote = JoinRequestVote.objects.create(
+            round=round_obj,
+            voter=voter,
+            join_request=join_request,
+            approve=approve
+        )
+
+        # Award voting credits
+        VotingService._award_voting_credits(round_obj, voter)
+
+        return vote
+
+    @staticmethod
+    def get_join_request_vote_counts(round_obj, join_request):
+        """
+        Get vote counts for a join request in current round.
+
+        Args:
+            round_obj: Current Round instance
+            join_request: JoinRequest instance
+
+        Returns:
+            dict: {'approve': int, 'deny': int, 'total': int}
+        """
+        from core.models import JoinRequestVote
+
+        votes = JoinRequestVote.objects.filter(
+            round=round_obj,
+            join_request=join_request
+        )
+
+        approve_count = votes.filter(approve=True).count()
+        deny_count = votes.filter(approve=False).count()
+
+        return {
+            'approve': approve_count,
+            'deny': deny_count,
+            'total': approve_count + deny_count
+        }
+
+    @staticmethod
+    def determine_winning_mrl(round_obj):
+        """
+        Determine the new MRL value after voting.
+
+        Args:
+            round_obj: The Round that just ended voting
+
+        Returns:
+            int: The new max_response_length_chars value
+        """
+        config = PlatformConfig.objects.get(pk=1)
+        discussion = round_obj.discussion
+
+        # Resolve vote
+        mrl_result = VotingService.resolve_vote(round_obj, "mrl")
+
+        if mrl_result == "no_change":
+            return discussion.max_response_length_chars
+
+        increment_pct = config.voting_increment_percentage / 100.0
+        current_value = discussion.max_response_length_chars
+
+        if mrl_result == "increase":
+            new_value = int(current_value * (1 + increment_pct))
+        else:  # decrease
+            new_value = int(current_value * (1 - increment_pct))
+
+        # Clamp to bounds
+        new_value = max(config.mrl_min_chars, min(new_value, config.mrl_max_chars))
+        return new_value
+
+    @staticmethod
+    def determine_winning_rtm(round_obj):
+        """
+        Determine the new RTM value after voting.
+
+        Args:
+            round_obj: The Round that just ended voting
+
+        Returns:
+            float: The new response_time_multiplier value
+        """
+        config = PlatformConfig.objects.get(pk=1)
+        discussion = round_obj.discussion
+
+        # Resolve vote
+        rtm_result = VotingService.resolve_vote(round_obj, "rtm")
+
+        if rtm_result == "no_change":
+            return discussion.response_time_multiplier
+
+        increment_pct = config.voting_increment_percentage / 100.0
+        current_value = discussion.response_time_multiplier
+
+        if rtm_result == "increase":
+            new_value = current_value * (1 + increment_pct)
+        else:  # decrease
+            new_value = current_value * (1 - increment_pct)
+
+        # Clamp to bounds
+        new_value = max(config.rtm_min, min(new_value, config.rtm_max))
+        return new_value
+
+    @staticmethod
+    def process_join_request_votes(round_obj):
+        """
+        Process all pending join requests based on votes cast in this round.
+
+        Approval requires >50% of votes (strict majority).
+        Requests without majority stay pending for next round.
+
+        Args:
+            round_obj: The Round that just ended voting
+
+        Returns:
+            dict: {'approved': [list of requests], 'denied': [list of requests], 'pending': [list of requests]}
+        """
+        from core.models import JoinRequest
+        from core.services.join_request import JoinRequestService
+
+        discussion = round_obj.discussion
+        pending_requests = JoinRequest.objects.filter(
+            discussion=discussion,
+            status='pending'
+        )
+
+        results = {
+            'approved': [],
+            'denied': [],
+            'pending': []
+        }
+
+        for request in pending_requests:
+            vote_counts = VotingService.get_join_request_vote_counts(round_obj, request)
+
+            if vote_counts['total'] == 0:
+                # No votes cast, stays pending
+                results['pending'].append(request)
+                continue
+
+            # Calculate approval percentage
+            approval_rate = vote_counts['approve'] / vote_counts['total']
+
+            if approval_rate > 0.5:  # Strict majority (>50%)
+                # Approve request
+                JoinRequestService.approve_request(request, approved_by=None)  # System approval
+                results['approved'].append(request)
+            elif approval_rate < 0.5:  # Clear denial
+                # Deny request
+                JoinRequestService.decline_request(request, approver=None)  # System denial
+                results['denied'].append(request)
+            else:  # Exactly 50% - stays pending
+                results['pending'].append(request)
+
+        return results

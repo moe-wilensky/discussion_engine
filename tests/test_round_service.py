@@ -155,12 +155,13 @@ class TestPhase1Timeout:
         Round.objects.filter(id=round_obj.id).update(start_time=old_time)
         round_obj.refresh_from_db()
         
-        # Add 3 participants (N = min(5, 3) = 3)
-        users = [UserFactory() for _ in range(3)]
+        # Add 2 additional participants (3 total including initiator, N = min(5, 3) = 3)
+        users = [UserFactory() for _ in range(2)]
         for user in users:
             DiscussionParticipantFactory(discussion=discussion, user=user, role="active")
         
-        # Add 3 responses (meets threshold)
+        # Add 3 responses (meets threshold including initiator)
+        ResponseFactory(round=round_obj, user=discussion.initiator)
         for user in users:
             ResponseFactory(round=round_obj, user=user)
         
@@ -450,12 +451,13 @@ class TestShouldEndRound:
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion, status="in_progress")
         
-        # Create 3 active participants
+        # Create 3 additional active participants (4 total including initiator)
         users = [UserFactory() for _ in range(3)]
         for user in users:
             DiscussionParticipantFactory(discussion=discussion, user=user, role="active")
         
-        # All respond
+        # All respond (including initiator)
+        ResponseFactory(round=round_obj, user=discussion.initiator)
         for user in users:
             ResponseFactory(round=round_obj, user=user)
         
@@ -484,13 +486,14 @@ class TestShouldEndRound:
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion, status="in_progress")
         
-        # Create 2 active, 1 observer
+        # Create 2 additional active (3 total including initiator), 1 observer
         user1, user2, user3 = [UserFactory() for _ in range(3)]
         DiscussionParticipantFactory(discussion=discussion, user=user1, role="active")
         DiscussionParticipantFactory(discussion=discussion, user=user2, role="active")
         DiscussionParticipantFactory(discussion=discussion, user=user3, role="temporary_observer")
         
-        # Only active users respond
+        # All active users respond (including initiator)
+        ResponseFactory(round=round_obj, user=discussion.initiator)
         ResponseFactory(round=round_obj, user=user1)
         ResponseFactory(round=round_obj, user=user2)
         
@@ -590,8 +593,8 @@ class TestGetPhaseInfo:
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion)
         
-        # Add 3 participants
-        for _ in range(3):
+        # Add 2 additional participants (3 total including initiator)
+        for _ in range(2):
             DiscussionParticipantFactory(discussion=discussion, role="active")
         
         # Add 1 response
@@ -680,13 +683,14 @@ class TestRoundServiceEdgeCases:
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion, status="in_progress")
         
-        # Create multiple participants
+        # Create 5 additional participants (6 total including initiator)
         users = [UserFactory() for _ in range(5)]
         for user in users:
             DiscussionParticipantFactory(discussion=discussion, user=user, role="active")
         
-        # Simulate concurrent responses
+        # Simulate concurrent responses (all participants)
         with transaction.atomic():
+            ResponseFactory(round=round_obj, user=discussion.initiator)
             for user in users:
                 ResponseFactory(round=round_obj, user=user)
         
@@ -694,15 +698,15 @@ class TestRoundServiceEdgeCases:
         assert RoundService.should_end_round(round_obj) is True
 
     def test_phase_1_with_zero_participants(self):
-        """Test Phase 1 behavior with no participants (edge case)."""
+        """Test Phase 1 behavior with only initiator (edge case)."""
         config = PlatformConfig.load()
         discussion = DiscussionFactory()
         round_obj = RoundFactory(discussion=discussion)
         
-        # No participants - should still be Phase 1 (N = 0, responses = 0)
+        # Only initiator participant (from factory), no additional participants
+        # N = min(config, 1) = 1, responses = 0, so 0 < 1 is True
         result = RoundService.is_phase_1(round_obj, config)
-        # With 0 participants and 0 responses, 0 < 0 is False
-        assert result is False
+        assert result is True
 
     def test_mrp_calculation_with_zero_responses(self):
         """Test MRP calculation returns default when no response times."""

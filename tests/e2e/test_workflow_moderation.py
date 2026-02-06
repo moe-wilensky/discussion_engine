@@ -29,13 +29,18 @@ pytestmark = [pytest.mark.playwright, pytest.mark.django_db(transaction=True), p
 
 
 class TestMutualRemoval:
-    """Test mutual removal workflow."""
+    """Test mutual removal workflow - DEPRECATED as of 2026-02."""
 
+    @pytest.mark.skip(reason="Kamikaze/mutual removal feature deprecated 2026-02")
     async def test_mutual_removal_initiation_and_confirmation(
         self, page: Page, live_server_url: str, async_create_verified_user
     ):
         """
         Test complete mutual removal workflow.
+
+        DEPRECATED: This test is kept for historical reference but skipped.
+        The kamikaze/mutual removal feature was removed in February 2026.
+        Use the removal voting system during inter-round voting phases instead.
 
         Steps:
         1. User A initiates mutual removal against User B
