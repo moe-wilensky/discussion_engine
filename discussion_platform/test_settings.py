@@ -10,7 +10,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": ":memory:",
         "OPTIONS": {
-            "timeout": 20,  # Increase timeout for concurrent operations
+            "timeout": 30,
         },
         "TEST": {
             "NAME": "file:memorydb_default?mode=memory&cache=shared",

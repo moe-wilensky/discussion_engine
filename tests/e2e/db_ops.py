@@ -67,7 +67,14 @@ def get_user(username):
 # Discussion Operations
 @sync_to_async(thread_sensitive=True)
 def create_discussion(initiator, topic_headline, topic_details="", **kwargs):
-    """Create a discussion asynchronously."""
+    """
+    Create a discussion asynchronously with all necessary related objects.
+    
+    This creates:
+    - The Discussion object
+    - A DiscussionParticipant for the initiator (if not exists)
+    - An initial Round (round 1) in 'active' status (if not exists)
+    """
     defaults = {
         "max_response_length_chars": 1000,
         "min_response_time_minutes": 5,
@@ -82,6 +89,26 @@ def create_discussion(initiator, topic_headline, topic_details="", **kwargs):
         topic_details=topic_details,
         **defaults
     )
+    
+    # Create participant for initiator (if not exists)
+    DiscussionParticipant.objects.get_or_create(
+        discussion=discussion,
+        user=initiator,
+        defaults={
+            'role': "initiator",
+            'can_invite_others': True,
+        }
+    )
+    
+    # Create initial round (if not exists)
+    Round.objects.get_or_create(
+        discussion=discussion,
+        round_number=1,
+        defaults={
+            'status': "active",
+        }
+    )
+    
     return discussion
 
 
@@ -107,12 +134,13 @@ def refresh_discussion(discussion):
 # Participant Operations
 @sync_to_async(thread_sensitive=True)
 def create_participant(discussion, user, role="active"):
-    """Create a discussion participant asynchronously."""
-    return DiscussionParticipant.objects.create(
+    """Create or update a discussion participant asynchronously."""
+    participant, _created = DiscussionParticipant.objects.update_or_create(
         discussion=discussion,
         user=user,
-        role=role
+        defaults={"role": role},
     )
+    return participant
 
 
 @sync_to_async(thread_sensitive=True)
@@ -127,13 +155,13 @@ def get_participant(discussion, user):
 # Round Operations
 @sync_to_async(thread_sensitive=True)
 def create_round(discussion, round_number, status="in_progress", **kwargs):
-    """Create a round asynchronously."""
-    return Round.objects.create(
+    """Create or update a round asynchronously."""
+    round_obj, _created = Round.objects.update_or_create(
         discussion=discussion,
         round_number=round_number,
-        status=status,
-        **kwargs
+        defaults={"status": status, **kwargs},
     )
+    return round_obj
 
 
 @sync_to_async(thread_sensitive=True)

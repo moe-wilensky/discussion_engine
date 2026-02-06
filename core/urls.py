@@ -109,6 +109,7 @@ urlpatterns = [
         name="preview-parameters",
     ),
     path("discussions/", discussions.list_discussions, name="list-discussions"),
+    path("discussions/my-states/", discussions.my_discussion_states, name="my-discussion-states"),
     path(
         "discussions/create/", discussions.create_discussion, name="create-discussion"
     ),
@@ -118,6 +119,11 @@ urlpatterns = [
         name="get-discussion",
     ),
     # Response endpoints
+    path(
+        "discussions/<int:discussion_id>/respond/",
+        responses.respond_to_discussion,
+        name="respond-to-discussion",
+    ),
     path(
         "discussions/<int:discussion_id>/rounds/<int:round_number>/responses/",
         responses.list_responses,

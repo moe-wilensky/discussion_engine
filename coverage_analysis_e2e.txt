@@ -1,0 +1,169 @@
+E2E COVERAGE REPORT
+===================
+Current Status: EXECUTED (Previously not run)
+Test Results: 25 passed, 8 failed, 1 skipped, 4 xfailed
+Backend Coverage During E2E: 33.10% (lower than unit tests alone)
+Target: All critical workflows covered
+
+E2E TEST EXECUTION RESULTS:
+==========================
+
+Tests Run: 38 total
+Tests Passed: 25 (65.8%)
+Tests Failed: 8 (21.1%)
+Tests Skipped: 1 (2.6%)
+Tests xfail: 4 (10.5%)
+
+EXISTING E2E TESTS:
+
+✅ PASSING E2E TESTS:
+1. test_visual_regression.py (visual regression tests)
+2. test_workflow_discussion_cycle.py (discussion lifecycle)
+3. test_workflow_moderation.py (moderation workflows)
+4. test_workflow_onboarding.py (partial - some tests pass)
+5. test_infrastructure_validation.py
+6. test_realtime_collaboration.py (partial - some tests pass)
+
+❌ FAILING E2E TESTS (MUST FIX):
+
+HIGH PRIORITY FAILURES (Join Request Voting - NEW FEATURE):
+1. tests/e2e/test_workflow_join_request_voting.py::test_join_request_voting_workflow
+   Error: TypeError: JoinRequest() got unexpected keyword arguments: 'user', 'message'
+   Issue: Test is using wrong JoinRequest creation syntax
+   Fix: Use JoinRequest.objects.create() or update test factory
+
+2. tests/e2e/test_workflow_join_request_voting.py::test_join_request_denial_workflow
+   Error: Same TypeError as #1
+   Fix: Same as #1
+
+3. tests/e2e/test_workflow_join_request_voting.py::test_join_request_vote_buttons_disabled_after_voting
+   Error: TypeError: JoinRequest() got unexpected keyword arguments: 'user'
+   Fix: Same as #1
+
+ASYNC/AWAIT ISSUES:
+4. tests/e2e/test_realtime_collaboration.py::test_user_a_submits_response_user_b_sees_update_without_reload
+   Error: AttributeError: 'coroutine' object has no attribute 'goto'
+   Issue: Missing await keywords for async Playwright methods
+   Fix: Add await to all async method calls (page.goto, page.click, etc.)
+
+5. tests/e2e/test_realtime_collaboration.py::test_admin_bans_user_user_immediately_logged_out
+   Error: Same async/await issue
+   Fix: Add await keywords
+
+VALIDATION ERRORS:
+6. tests/e2e/test_realtime_collaboration.py::test_timer_hits_zero_round_transitions_automatically
+   Error: ValidationError: ['MRM must be at least 5 minutes']
+   Issue: Test trying to set MRM < 5 minutes
+   Fix: Update test to use valid MRM value (≥5 minutes)
+
+REGISTRATION/ONBOARDING FAILURES:
+7. tests/e2e/test_workflow_onboarding.py::test_complete_registration_flow_with_invite_code
+   Error: TimeoutError waiting for navigation to homepage
+   Issue: Navigation not completing or homepage not loading
+   Fix: Investigate homepage rendering issue or increase timeout
+
+8. tests/e2e/test_workflow_onboarding.py::test_invite_code_consumption_on_registration
+   Error: AssertionError: assert 'sent' in ['used', 'accepted']
+   Issue: Test expects invite status 'sent' but model uses 'used'/'accepted'
+   Fix: Update test assertion or model status values
+
+WARNINGS:
+- 34 RuntimeWarnings about unawaited coroutines
+  Issue: Missing await keywords in test code
+  Fix: Add await to all async Playwright calls
+
+CRITICAL WORKFLOWS MISSING/INCOMPLETE:
+
+❌ MUST HAVE (New Features - Need Additional Tests):
+1. Complete join request voting workflow (HAS TESTS - NEED FIXES)
+   - User submits join request ✓ (test exists but failing)
+   - Discussion enters voting phase ✓
+   - Multiple users vote on request ✓ (test exists but failing)
+   - Vote counts update in real-time ? (needs verification)
+   - Majority approval processes correctly ✓ (test exists but failing)
+   - User becomes participant ✓
+   - Voting credits awarded to voters ? (needs specific test)
+
+2. Voting credits verification workflow (MISSING - MUST ADD)
+   - User enters voting phase
+   - Casts multiple vote types (MRL, RTM, join request)
+   - Verify credits awarded ONCE per session
+   - Verify credits NOT awarded on second vote
+   - Verify credits CAN be awarded in next round
+
+3. Kamikaze deprecation workflow (MISSING - MUST ADD)
+   - Verify kamikaze UI hidden
+   - Verify API returns 410 Gone
+   - Verify historical records viewable
+   - Verify mechanics still work for existing records
+
+❌ HIGH PRIORITY (Core Functionality - Partial Coverage):
+4. Discussion creation to completion ✓ (PASSING - test_workflow_discussion_cycle.py)
+   - Create discussion ✓
+   - Add participants ✓
+   - Submit responses ✓
+   - Complete multiple rounds ✓
+   - Verify all mechanics ✓
+
+5. Observer reintegration (PARTIAL - NEEDS MORE TESTS)
+   - User removed from discussion
+   - Wait period elapses
+   - User rejoins
+   - Verify credits NOT awarded during observation
+
+6. Concurrent voting scenarios (MISSING)
+   - Multiple users vote simultaneously
+   - No race conditions
+   - All votes counted correctly
+   - Credits awarded correctly
+
+❌ ERROR SCENARIOS (PARTIAL):
+7. Permission violations (PARTIAL)
+   - Non-participant tries to vote ? (needs test)
+   - User tries to vote twice ? (needs test)
+   - Voting when not in voting phase ? (needs test)
+   - All return appropriate errors ? (needs verification)
+
+8. Network failures (MISSING)
+   - AJAX timeout handling
+   - Server error responses
+   - Retry mechanisms
+
+ESTIMATED E2E TESTS NEEDED:
+- Fix 8 failing tests: HIGH PRIORITY
+- Add 3 new comprehensive workflow tests: MEDIUM PRIORITY
+- Add 10-15 scenario tests for edge cases: LOWER PRIORITY
+- ~18-26 additional test cases to achieve comprehensive coverage
+
+PRIORITY ORDER FOR FIXES:
+1. Fix join request voting tests (3 tests - NEW FEATURE)
+2. Fix async/await issues (2 tests)
+3. Fix validation error test (1 test)
+4. Fix registration/onboarding tests (2 tests)
+5. Add voting credits verification E2E test (NEW)
+6. Add kamikaze deprecation E2E test (NEW)
+7. Add concurrent voting E2E test (NEW)
+8. Add error scenario E2E tests
+
+ACTION REQUIRED:
+1. ✗ Fix JoinRequest creation in test_workflow_join_request_voting.py (3 tests)
+2. ✗ Add await keywords to async calls in test_realtime_collaboration.py (2 tests)
+3. ✗ Fix MRM validation in test_timer_hits_zero (1 test)
+4. ✗ Debug homepage navigation timeout (1 test)
+5. ✗ Fix invite status assertion (1 test)
+6. ✗ Create new E2E test for voting credits workflow
+7. ✗ Create new E2E test for kamikaze deprecation
+8. ✗ Create new E2E test for concurrent voting
+9. ✗ Add error scenario tests
+
+BLOCKER STATUS:
+❌ 8 tests currently failing (21% failure rate)
+⚠️ 3 critical join request voting tests failing (NEW FEATURE)
+⚠️ Async/await issues indicate test code quality problems
+✅ 25 tests passing (65.8%) - good foundation exists
+✅ Core discussion workflow covered and passing
+
+Next Steps:
+1. Fix failing tests (Phase 4 - Fix existing E2E tests)
+2. Create new comprehensive E2E tests (Phase 4 - New tests)
+3. Achieve 100% pass rate on critical workflows

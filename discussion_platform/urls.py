@@ -49,6 +49,7 @@ urlpatterns = [
     # Discussions
     path("discussions/", views.discussion_list_view, name="discussion-list"),
     path("discussions/create/", views.discussion_create_view, name="discussion-create"),
+    path("discussions/create-wizard/", views.discussion_create_wizard_view, name="discussion-create-wizard"),
     path(
         "discussions/<int:discussion_id>/",
         views.discussion_detail_view,
@@ -63,6 +64,18 @@ urlpatterns = [
         "discussions/<int:discussion_id>/voting/",
         views.discussion_voting_view,
         name="discussion-voting",
+    ),
+    # New UI Views
+    path("dashboard-new/", views.dashboard_new_view, name="dashboard-new"),
+    path(
+        "discussions/<int:discussion_id>/active/",
+        views.discussion_active_view,
+        name="discussion-active",
+    ),
+    path(
+        "discussions/<int:discussion_id>/observer/",
+        views.discussion_observer_view,
+        name="discussion-observer",
     ),
     # Moderation
     path(

@@ -21,6 +21,7 @@ from core.models import (
     Discussion,
     DiscussionParticipant,
     Response,
+    Round,
     NotificationLog,
     PlatformConfig,
     Invite,
@@ -247,24 +248,16 @@ def discussion_create_view(request):
     """Discussion creation wizard."""
     if request.method == "POST":
         try:
-            # Get form data
-            headline = request.POST.get("headline", "").strip()
+            # Get form data - field names match create.html form
+            headline = request.POST.get("topic", "").strip()
             details = request.POST.get("details", "").strip()
 
-            # Get parameters (either from preset or custom)
-            preset = request.POST.get("preset")
+            # Convert hours to minutes for MRM
+            mri_hours = int(request.POST.get("mri_hours", 24))
+            mrm = mri_hours * 60
 
-            if preset:
-                from core.services.discussion_presets import DiscussionPreset
-                preset_data = DiscussionPreset.get_preset(preset)
-                mrm = preset_data["mrm_minutes"]
-                rtm = preset_data["rtm"]
-                mrl = preset_data["mrl_chars"]
-            else:
-                # Custom parameters
-                mrm = int(request.POST.get("mrm_minutes", 30))
-                rtm = float(request.POST.get("rtm", 1.0))
-                mrl = int(request.POST.get("mrl_chars", 2000))
+            rtm = 1.0  # Default response time multiplier
+            mrl = int(request.POST.get("max_chars", 2000))
 
             # Create discussion using service
             discussion = DiscussionService.create_discussion(
@@ -414,8 +407,31 @@ def discussion_participate_view(request, discussion_id):
         return redirect("discussion-detail", discussion_id=discussion_id)
 
     if request.method == "POST":
-        # This would integrate with the API endpoint
-        messages.success(request, "Response submitted successfully!")
+        content = request.POST.get("content", "").strip()
+        if not content:
+            messages.error(request, "Response content is required.")
+            return redirect("discussion-participate", discussion_id=discussion_id)
+
+        # Get current round
+        current_round = Round.objects.filter(
+            discussion=discussion
+        ).order_by("-round_number").first()
+        if not current_round:
+            messages.error(request, "No active round found.")
+            return redirect("discussion-detail", discussion_id=discussion_id)
+
+        try:
+            from core.services.response_service import ResponseService
+            ResponseService.submit_response(
+                user=request.user,
+                round=current_round,
+                content=content,
+            )
+            messages.success(request, "Response submitted successfully!")
+        except ValidationError as e:
+            messages.error(request, str(e))
+            return redirect("discussion-participate", discussion_id=discussion_id)
+
         return redirect("discussion-detail", discussion_id=discussion_id)
 
     # Get previous responses for quoting
@@ -436,86 +452,6 @@ def discussion_participate_view(request, discussion_id):
 
     return render(request, "discussions/participate.html", context)
 
-
-@login_required
-def discussion_voting_view(request, discussion_id):
-    """
-    Voting interface for inter-round voting.
-
-    Updated 2026-02: Added join request voting support
-    """
-    from core.models import JoinRequest, JoinRequestVote, Round
-    from core.services.voting_service import VotingService
-
-    discussion = get_object_or_404(Discussion, id=discussion_id)
-
-    if discussion.status != "voting":
-        messages.error(request, "This discussion is not in voting phase.")
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    # Check if user is eligible to vote
-    try:
-        participant = DiscussionParticipant.objects.get(
-            discussion=discussion, user=request.user, role__in=["active", "initiator"]
-        )
-    except DiscussionParticipant.DoesNotExist:
-        messages.error(request, "You are not eligible to vote.")
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    if request.method == "POST":
-        # This would integrate with the API endpoint
-        messages.success(request, "Votes submitted successfully!")
-        return redirect("discussion-detail", discussion_id=discussion_id)
-
-    # Get current round
-    current_round = Round.objects.filter(discussion=discussion).order_by('-round_number').first()
-
-    # Get other participants for moderation voting
-    other_participants = (
-        DiscussionParticipant.objects.filter(discussion=discussion, role__in=["active", "initiator"])
-        .exclude(user=request.user)
-        .select_related("user")
-    )
-
-    # Get pending join requests with vote data
-    pending_join_requests = JoinRequest.objects.filter(
-        discussion=discussion,
-        status='pending'
-    ).select_related('requester')
-
-    # Annotate each request with vote counts and user's vote
-    join_request_data = []
-    if current_round:
-        for jr in pending_join_requests:
-            vote_counts = VotingService.get_join_request_vote_counts(current_round, jr)
-
-            # Check if current user voted
-            user_vote = JoinRequestVote.objects.filter(
-                round=current_round,
-                voter=request.user,
-                join_request=jr
-            ).first()
-
-            join_request_data.append({
-                'id': jr.id,
-                'user': jr.requester,
-                'message': jr.message,
-                'requested_at': jr.requested_at,
-                'approve_votes': vote_counts['approve'],
-                'deny_votes': vote_counts['deny'],
-                'total_votes': vote_counts['total'],
-                'user_has_voted': user_vote is not None,
-                'user_vote_approve': user_vote.approve if user_vote else None
-            })
-
-    context = {
-        "discussion": discussion,
-        "participant": participant,
-        "other_participants": other_participants,
-        "pending_join_requests": join_request_data,
-    }
-
-    return render(request, "discussions/voting.html", context)
 
 
 # =============================================================================
@@ -740,3 +676,326 @@ def notification_preferences_view(request):
         "system_prefs": system_prefs,
         "social_prefs": social_prefs
     })
+
+
+# =============================================================================
+# New UI Views for Refactored Discussion Interface
+# =============================================================================
+
+
+@login_required
+def dashboard_new_view(request):
+    """New dashboard with invite economy and discussion state cards."""
+    user = request.user
+    
+    # Get all discussions where user is involved
+    participations = DiscussionParticipant.objects.filter(
+        user=user
+    ).select_related('discussion')
+    
+    discussions = []
+    for participation in participations:
+        disc = participation.discussion
+        # Get the latest active round
+        current_round = Round.objects.filter(
+            discussion=disc
+        ).order_by('-round_number').first()
+        
+        # Determine UI status and action
+        ui_status = 'waiting'
+        ui_icon = '⏸️'
+        action_label = 'Waiting for others'
+        button_text = 'View Discussion'
+        urgency = None
+        urgency_level = 'low'
+        deadline_iso = None
+        time_remaining = None
+        
+        if participation.role == 'active':
+            if current_round and current_round.status == 'active':
+                # Check if user has responded
+                has_responded = Response.objects.filter(
+                    round=current_round,
+                    user=user
+                ).exists()
+                
+                if not has_responded:
+                    ui_status = 'active-needs-response'
+                    ui_icon = '✍️'
+                    action_label = 'Your response needed'
+                    button_text = 'Respond Now'
+                    urgency = True
+                    
+                    # Calculate deadline
+                    from core.services.round_service import RoundService
+                    mrp_deadline = RoundService.get_mrp_deadline(current_round)
+                    if mrp_deadline:
+                        deadline_iso = mrp_deadline.isoformat()
+                        remaining = mrp_deadline - timezone.now()
+                        if remaining.total_seconds() > 0:
+                            minutes = int(remaining.total_seconds() / 60)
+                            if minutes < 10:
+                                urgency_level = 'high'
+                                time_remaining = f'{minutes}m remaining'
+                            elif minutes < 60:
+                                urgency_level = 'medium'
+                                time_remaining = f'{minutes}m remaining'
+                            else:
+                                hours = minutes // 60
+                                urgency_level = 'low'
+                                time_remaining = f'{hours}h remaining'
+                else:
+                    ui_status = 'waiting'
+                    action_label = 'Waiting for other responses'
+            
+            elif current_round and current_round.status == 'voting':
+                # Check if user has voted
+                has_voted = current_round.votes.filter(user=user).exists()
+                
+                if not has_voted:
+                    ui_status = 'voting-available'
+                    ui_icon = '🗳️'
+                    action_label = 'Voting available'
+                    button_text = 'Vote Now'
+                    urgency = True
+                    urgency_level = 'medium'
+                    
+                    # Calculate voting deadline
+                    if current_round.end_time and current_round.final_mrp_minutes:
+                        voting_deadline = current_round.end_time + timedelta(
+                            minutes=current_round.final_mrp_minutes
+                        )
+                        deadline_iso = voting_deadline.isoformat()
+                        remaining = voting_deadline - timezone.now()
+                        if remaining.total_seconds() > 0:
+                            minutes = int(remaining.total_seconds() / 60)
+                            time_remaining = f'{minutes}m to vote'
+                else:
+                    ui_status = 'waiting'
+                    action_label = 'Votes submitted'
+        
+        elif participation.role == 'observer':
+            ui_status = 'observer'
+            ui_icon = '👁️'
+            action_label = 'Observing'
+            button_text = 'View as Observer'
+        
+        discussions.append({
+            'id': disc.id,
+            'topic_headline': disc.topic_headline,
+            'current_round': current_round.round_number if current_round else 1,
+            'participant_count': DiscussionParticipant.objects.filter(
+                discussion=disc,
+                role__in=['active', 'initiator']
+            ).count(),
+            'ui_status': ui_status,
+            'ui_icon': ui_icon,
+            'action_label': action_label,
+            'button_text': button_text,
+            'urgency': urgency,
+            'urgency_level': urgency_level,
+            'deadline_iso': deadline_iso,
+            'time_remaining': time_remaining,
+        })
+    
+    context = {
+        'discussions': discussions,
+    }
+    
+    return render(request, 'dashboard/home_new.html', context)
+
+
+@login_required
+def discussion_active_view(request, discussion_id):
+    """Active discussion view for users who can respond."""
+    discussion = get_object_or_404(Discussion, id=discussion_id)
+    user = request.user
+    
+    # Check user is active participant
+    participation = DiscussionParticipant.objects.filter(
+        discussion=discussion,
+        user=user,
+        role__in=['active', 'initiator']
+    ).first()
+    
+    if not participation:
+        return redirect('discussion-observer', discussion_id=discussion_id)
+    
+    # Get the latest active round
+    current_round = Round.objects.filter(
+        discussion=discussion
+    ).order_by('-round_number').first()
+    
+    if not current_round:
+        return redirect('dashboard')
+    
+    # Get all responses in this round
+    responses = Response.objects.filter(
+        round=current_round
+    ).select_related('user').order_by('created_at')
+    
+    # Calculate MRP deadline
+    from core.services.round_service import RoundService
+    mrp_deadline = RoundService.get_mrp_deadline(current_round)
+    mrp_time_remaining = ''
+    if mrp_deadline:
+        remaining = mrp_deadline - timezone.now()
+        if remaining.total_seconds() > 0:
+            hours = int(remaining.total_seconds() / 3600)
+            minutes = int((remaining.total_seconds() % 3600) / 60)
+            mrp_time_remaining = f'{hours}:{minutes:02d}'
+    
+    # Determine participant status
+    has_responded = Response.objects.filter(round=current_round, user=user).exists()
+    participant_status = 'Responded this round' if has_responded else 'Response pending'
+    
+    context = {
+        'discussion': discussion,
+        'current_round': current_round,
+        'responses': responses,
+        'mrp_deadline': mrp_deadline,
+        'mrp_time_remaining': mrp_time_remaining,
+        'participant_status': participant_status,
+    }
+    
+    return render(request, 'discussions/active_view.html', context)
+
+
+@login_required
+def discussion_voting_view(request, discussion_id):
+    """Inter-round voting view for active participants."""
+    discussion = get_object_or_404(Discussion, id=discussion_id)
+    user = request.user
+    
+    # Check user is active participant
+    participation = DiscussionParticipant.objects.filter(
+        discussion=discussion,
+        user=user,
+        role__in=['active', 'initiator']
+    ).first()
+    
+    if not participation:
+        return HttpResponseForbidden("You must be an active participant to vote")
+    
+    # Get the latest round
+    current_round = Round.objects.filter(
+        discussion=discussion
+    ).order_by('-round_number').first()
+    
+    if not current_round or current_round.status != 'voting':
+        messages.error(request, "Discussion is not in voting phase")
+        return redirect('discussion-detail', discussion_id=discussion_id)
+    
+    # Get join requests
+    from core.models import JoinRequest
+    join_requests = JoinRequest.objects.filter(
+        discussion=discussion,
+        status='pending'
+    ).select_related('requester')
+    
+    # Get active participants for removal voting
+    active_participants = User.objects.filter(
+        participations__discussion=discussion,
+        participations__role__in=['active', 'initiator']
+    ).exclude(id=user.id)
+    
+    # Calculate parameter previews
+    current_mrl = discussion.max_response_length_chars
+    current_rtm = discussion.response_time_multiplier
+    
+    mrl_decrease = int(current_mrl * 0.9)
+    mrl_increase = int(current_mrl * 1.1)
+    rtm_decrease = round(current_rtm * 0.9, 1)
+    rtm_increase = round(current_rtm * 1.1, 1)
+    
+    # Calculate voting deadline
+    voting_deadline = None
+    voting_time_remaining = ''
+    if current_round.end_time and current_round.final_mrp_minutes:
+        voting_deadline = current_round.end_time + timedelta(
+            minutes=current_round.final_mrp_minutes
+        )
+        remaining = voting_deadline - timezone.now()
+        if remaining.total_seconds() > 0:
+            hours = int(remaining.total_seconds() / 3600)
+            minutes = int((remaining.total_seconds() % 3600) / 60)
+            voting_time_remaining = f'{hours}:{minutes:02d}'
+    
+    context = {
+        'discussion': discussion,
+        'current_round': current_round,
+        'join_requests': join_requests,
+        'active_participants': active_participants,
+        'mrl_decrease': mrl_decrease,
+        'mrl_increase': mrl_increase,
+        'rtm_decrease': rtm_decrease,
+        'rtm_increase': rtm_increase,
+        'voting_deadline': voting_deadline,
+        'voting_time_remaining': voting_time_remaining,
+    }
+    
+    return render(request, 'discussions/voting.html', context)
+
+
+@login_required
+def discussion_observer_view(request, discussion_id):
+    """Observer view for read-only discussion viewing."""
+    discussion = get_object_or_404(Discussion, id=discussion_id)
+    user = request.user
+    
+    # Check if user is observer or can view
+    participation = DiscussionParticipant.objects.filter(
+        discussion=discussion,
+        user=user
+    ).first()
+    
+    observer_reason = 'viewing'
+    if participation:
+        if participation.role == 'observer':
+            # Determine why they're observer
+            if participation.observer_reason == 'mrp_timeout':
+                observer_reason = 'mrp_timeout'
+            elif participation.observer_reason == 'removed_by_vote':
+                observer_reason = 'removed'
+    
+    # Get the latest active round
+    current_round = Round.objects.filter(
+        discussion=discussion
+    ).order_by('-round_number').first()
+    
+    if not current_round:
+        return redirect('dashboard')
+    
+    # Get all responses in this round
+    responses = Response.objects.filter(
+        round=current_round
+    ).select_related('user').order_by('created_at')
+    
+    context = {
+        'discussion': discussion,
+        'current_round': current_round,
+        'responses': responses,
+        'observer_reason': observer_reason,
+    }
+    
+    return render(request, 'discussions/observer_view.html', context)
+
+
+@login_required
+def discussion_create_wizard_view(request):
+    """Multi-step wizard for creating new discussions."""
+    # Get or create platform config
+    config, _ = PlatformConfig.objects.get_or_create(
+        pk=1,
+        defaults={
+            'max_headline_length': 100,
+            'max_topic_length': 500,
+        }
+    )
+    
+    context = {
+        'max_headline_length': config.max_headline_length,
+        'max_topic_length': config.max_topic_length,
+    }
+    
+    return render(request, 'discussions/create_wizard.html', context)

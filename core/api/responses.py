@@ -147,6 +147,69 @@ def create_response(request, discussion_id, round_number):
     )
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def respond_to_discussion(request, discussion_id):
+    """
+    POST /api/discussions/{discussion_id}/respond/
+
+    Submit a response to the current active round of a discussion.
+    Used by the active_view.html JS submitResponse() function.
+    """
+    import json
+    from core.models import Discussion, DiscussionParticipant
+
+    try:
+        discussion = Discussion.objects.get(id=discussion_id)
+    except Discussion.DoesNotExist:
+        return DRFResponse(
+            {"error": "Discussion not found"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Check participant
+    if not DiscussionParticipant.objects.filter(
+        discussion=discussion, user=request.user, role__in=["initiator", "active"]
+    ).exists():
+        return DRFResponse(
+            {"error": "Not an active participant"}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Get current round
+    round_obj = Round.objects.filter(
+        discussion=discussion, status="in_progress"
+    ).order_by("-round_number").first()
+
+    if not round_obj:
+        return DRFResponse(
+            {"error": "No active round"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Parse JSON body
+    try:
+        body = request.data
+        content = body.get("response_text", "").strip()
+    except Exception:
+        content = ""
+
+    if not content:
+        return DRFResponse(
+            {"error": "Response text is required"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        response = ResponseService.submit_response(
+            user=request.user,
+            round=round_obj,
+            content=content,
+        )
+    except Exception as e:
+        return DRFResponse(
+            {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    return DRFResponse({"status": "ok"}, status=status.HTTP_201_CREATED)
+
+
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def edit_response(request, response_id):

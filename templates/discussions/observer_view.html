@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ discussion.topic_headline }} - Observer{% endblock %}
+
+{% block extra_css %}
+<style>
+.observer-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.observer-badge {
+  padding: 0.25rem 0.5rem;
+  background: #e5e7eb;
+  color: #6b7280;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.observer-notice {
+  padding: 1rem;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  margin: 1rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.observer-notice.mrp-timeout {
+  background: #fef2f2;
+  border-left-color: #dc2626;
+}
+
+.observer-notice.removed {
+  background: #fef2f2;
+  border-left-color: #dc2626;
+}
+
+.observer-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background: #f9fafb;
+}
+
+.response-card.read-only {
+  opacity: 0.9;
+}
+
+.observer-footer {
+  padding: 1rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+}
+
+.observer-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="observer-layout" data-discussion-id="{{ discussion.id }}">
+  <!-- Global Header -->
+  <div class="global-header">
+    <div>
+      <button onclick="window.location.href='{% url 'dashboard' %}'" style="background: none; border: none; cursor: pointer; font-size: 1.25rem;">←</button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <span style="font-weight: 600;">Round {{ current_round.round_number }}</span>
+      <span class="observer-badge">Observer</span>
+    </div>
+    <div></div>
+  </div>
+
+  <!-- Observer Notice -->
+  <div class="observer-notice {{ observer_reason }}">
+    <span style="font-size: 1.5rem;">ℹ️</span>
+    <div>
+      <strong>You are observing this discussion</strong>
+      <p style="margin-top: 0.25rem; font-size: 0.875rem;">
+        {% if observer_reason == 'mrp_timeout' %}
+          You were moved to observer status for missing the response deadline.
+        {% elif observer_reason == 'removed' %}
+          You were removed by participant vote. You can request to rejoin below.
+        {% else %}
+          You are viewing this discussion as an observer.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Topic Context (Collapsible) -->
+  <div class="topic-context" id="topic-context">
+    <button class="collapse-toggle" onclick="toggleTopic()">▼</button>
+    <div class="topic-content">
+      <div class="headline">{{ discussion.topic_headline }}</div>
+      <div class="topic">{{ discussion.topic_details }}</div>
+    </div>
+  </div>
+
+  <!-- Response Stream (Read-Only) -->
+  <div class="observer-stream" id="observer-stream">
+    {% for response in responses %}
+    <div class="response-card read-only">
+      <div class="response-header">
+        <div class="author-info">
+          <img src="{% static 'img/default-avatar.png' %}" alt="{{ response.user.username }}">
+          <div>
+            <div class="username">{{ response.user.username }}</div>
+            <div class="timestamp">{{ response.created_at|timesince }} ago</div>
+          </div>
+        </div>
+      </div>
+      
+      {% if response.quoted_response %}
+      <div class="quoted-response">
+        <div class="quote-author">@{{ response.quoted_response.user.username }}</div>
+        <div class="quote-text">{{ response.quoted_response.response_text|truncatewords:30 }}</div>
+      </div>
+      {% endif %}
+      
+      <div class="response-content">{{ response.response_text }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Observer Footer -->
+  <div class="observer-footer">
+    <div class="observer-hint">
+      <span>👁️</span>
+      <span>Observing - Read only mode</span>
+    </div>
+    
+    <button onclick="askToJoin()" style="width: 100%; padding: 1rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 0.75rem;">
+      Request to Join Discussion
+    </button>
+    
+    <button onclick="leaveDiscussion()" style="width: 100%; padding: 0.5rem; background: none; border: none; color: #6b7280; font-size: 0.875rem; cursor: pointer; margin-top: 0.5rem;">
+      Stop Observing
+    </button>
+  </div>
+</div>
+
+<script>
+async function askToJoin() {
+  const discussionId = document.querySelector('.observer-layout').dataset.discussionId;
+  const message = prompt('Enter a message for your join request (optional):');
+  
+  if (message === null) return; // Cancelled
+  
+  try {
+    const response = await fetch(`/api/discussions/${discussionId}/join-requests/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({
+        request_message: message
+      })
+    });
+    
+    if (response.ok) {
+      alert('Join request submitted! Active participants will vote on your request.');
+    } else {
+      const error = await response.json();
+      alert(error.error || 'Failed to submit join request');
+    }
+  } catch (error) {
+    console.error('Error submitting join request:', error);
+    alert('Network error. Please try again.');
+  }
+}
+
+function toggleTopic() {
+  document.getElementById('topic-context').classList.toggle('collapsed');
+}
+
+function leaveDiscussion() {
+  if (confirm('Stop observing this discussion?')) {
+    window.location.href = '{% url "dashboard" %}';
+  }
+}
+
+function getCsrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+// Poll for discussion updates
+function checkIfActiveStatus() {
+  const discussionId = document.querySelector('.observer-layout').dataset.discussionId;
+  
+  fetch(`/api/discussions/${discussionId}/my-status/`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'active') {
+        alert('You have been approved to join! Reloading...');
+        window.location.reload();
+      }
+    })
+    .catch(error => console.error('Error checking status:', error));
+}
+
+// Check every 30 seconds
+setInterval(checkIfActiveStatus, 30000);
+</script>
+
+{% csrf_token %}
+{% endblock %}

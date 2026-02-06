@@ -78,8 +78,8 @@ class TestJoinRequestVoting:
         def create_join_request():
             return JoinRequest.objects.create(
                 discussion=discussion,
-                user=user_requester,
-                message="I would like to contribute to this discussion",
+                requester=user_requester,
+                request_message="I would like to contribute to this discussion",
                 status="pending"
             )
 
@@ -204,11 +204,13 @@ class TestJoinRequestVoting:
             join_request.save()
 
             # Create participant record
-            DiscussionParticipant.objects.create(
+            DiscussionParticipant.objects.update_or_create(
                 discussion=discussion,
                 user=user_requester,
-                role="active",
-                joined_at=timezone.now()
+                defaults={
+                    'role': "active",
+                    'joined_at': timezone.now(),
+                },
             )
 
         await approve_join_request()
@@ -271,8 +273,8 @@ class TestJoinRequestVoting:
         def create_join_request():
             return JoinRequest.objects.create(
                 discussion=discussion,
-                user=user_requester,
-                message="Please let me join",
+                requester=user_requester,
+                request_message="Please let me join",
                 status="pending"
             )
 
@@ -368,7 +370,7 @@ class TestJoinRequestVoting:
         def create_join_request():
             return JoinRequest.objects.create(
                 discussion=discussion,
-                user=user_requester,
+                requester=user_requester,
                 status="pending"
             )
 

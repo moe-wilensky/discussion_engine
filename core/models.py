@@ -544,6 +544,7 @@ class Round(models.Model):
     voting_credits_awarded = models.JSONField(
         default=list,
         blank=True,
+        null=True,
         help_text="List of user IDs who received voting credits this round"
     )
     # Stores list of user IDs who received voting credits in this voting session
@@ -939,7 +940,9 @@ class JoinRequest(models.Model):
         User, on_delete=models.CASCADE, related_name="join_requests_made"
     )
     approver = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="join_requests_to_approve"
+        User, on_delete=models.CASCADE, related_name="join_requests_to_approve",
+        null=True, blank=True,
+        help_text="Legacy field. For voting-based approval, this is null."
     )
 
     status = models.CharField(

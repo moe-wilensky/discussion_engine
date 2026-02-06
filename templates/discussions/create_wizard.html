@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Create Discussion{% endblock %}
+
+{% block extra_css %}
+<style>
+.wizard-layout {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.wizard-step {
+  display: none;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.wizard-step.active {
+  display: block;
+}
+
+.wizard-step h2 {
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.char-count {
+  text-align: right;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.step-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.step-actions button {
+  flex: 1;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+}
+
+.user-search {
+  position: relative;
+}
+
+.search-results {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.user-result {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.user-result:hover {
+  background: #f9fafb;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-info img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.selected-participants {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.participant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.participant-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #eff6ff;
+  border: 1px solid #3b82f6;
+  border-radius: 20px;
+}
+
+.participant-chip img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.remove-participant {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #dc2626;
+  margin-left: 0.25rem;
+}
+
+.budget-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #dc2626;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-layout" id="discussion-wizard">
+  <!-- Header -->
+  <div class="wizard-header">
+    <h1 style="font-size: 1.5rem; font-weight: 700;">Create New Discussion</h1>
+    <div style="font-size: 0.875rem; color: #6b7280;">
+      {{ user.discussion_invites_banked|floatformat:0 }} credits available
+    </div>
+  </div>
+
+  <!-- Step 1: Basic Info -->
+  <div class="wizard-step active" data-step="1">
+    <h2>Discussion Details</h2>
+    
+    <div class="form-group">
+      <label for="headline">Headline *</label>
+      <input type="text" id="headline" maxlength="{{ max_headline_length }}" required>
+      <div class="char-count">
+        <span id="headline-count">0</span> / {{ max_headline_length }}
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label for="topic">Topic *</label>
+      <textarea id="topic" rows="6" maxlength="{{ max_topic_length }}" required></textarea>
+      <div class="char-count">
+        <span id="topic-count">0</span> / {{ max_topic_length }}
+      </div>
+    </div>
+    
+    <div class="step-actions">
+      <button type="button" class="btn-secondary" onclick="window.location.href='{% url 'dashboard' %}'">
+        Cancel
+      </button>
+      <button type="button" class="btn-primary" onclick="nextStep()">
+        Next
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Parameters -->
+  <div class="wizard-step" data-step="2">
+    <h2>Discussion Parameters</h2>
+    
+    <div class="form-group">
+      <label for="max-length">Max Response Length (characters)</label>
+      <input type="number" id="max-length" value="500" min="100" max="5000" step="50">
+      <p class="help-text">Character limit for Round 1 responses</p>
+    </div>
+    
+    <div class="form-group">
+      <label for="rtm">Response Time Multiplier</label>
+      <input type="number" id="rtm" value="1.0" min="0.5" max="3.0" step="0.1">
+      <p class="help-text">Multiplier for response time windows</p>
+    </div>
+    
+    <div class="step-actions">
+      <button type="button" class="btn-secondary" onclick="prevStep()">
+        Back
+      </button>
+      <button type="button" class="btn-primary" onclick="nextStep()">
+        Next
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3: Invite Participants -->
+  <div class="wizard-step" data-step="3">
+    <h2>Invite Participants</h2>
+    
+    <div class="form-group user-search">
+      <label for="user-search">Search Users</label>
+      <input type="text" id="user-search" placeholder="Search by username..." oninput="searchUsers()">
+      
+      <div id="search-results" class="search-results" style="display: none;"></div>
+    </div>
+    
+    <div class="selected-participants" id="selected-section" style="display: none;">
+      <h3 style="font-weight: 600; margin-bottom: 0.5rem;">Selected Participants (<span id="invite-count">0</span>)</h3>
+      <div class="participant-list" id="participant-list"></div>
+    </div>
+    
+    <div id="budget-warning" class="budget-warning" style="display: none; margin-top: 1rem;">
+      <span>⚠️</span>
+      <div>
+        <strong>Warning:</strong> You've selected more participants than you have credits. 
+        Invites will become inactive when credits run out.
+      </div>
+    </div>
+    
+    <div class="step-actions">
+      <button type="button" class="btn-secondary" onclick="prevStep()">
+        Back
+      </button>
+      <button type="button" class="btn-primary" onclick="createDiscussion()">
+        Create Discussion
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const wizardData = {
+  headline: '',
+  topic: '',
+  maxLength: 500,
+  rtm: 1.0,
+  participants: [],
+  availableCredits: {{ user.discussion_invites_banked }}
+};
+
+let currentStep = 1;
+
+function nextStep() {
+  // Validate current step
+  if (currentStep === 1) {
+    const headline = document.getElementById('headline').value.trim();
+    const topic = document.getElementById('topic').value.trim();
+    
+    if (!headline || !topic) {
+      alert('Please fill in both headline and topic');
+      return;
+    }
+    
+    wizardData.headline = headline;
+    wizardData.topic = topic;
+  } else if (currentStep === 2) {
+    wizardData.maxLength = parseInt(document.getElementById('max-length').value);
+    wizardData.rtm = parseFloat(document.getElementById('rtm').value);
+  }
+  
+  // Move to next step
+  document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+  currentStep++;
+  document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+}
+
+function prevStep() {
+  document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+  currentStep--;
+  document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+}
+
+async function searchUsers() {
+  const query = document.getElementById('user-search').value.trim();
+  
+  if (query.length < 2) {
+    document.getElementById('search-results').style.display = 'none';
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/users/search/?q=${encodeURIComponent(query)}`);
+    const users = await response.json();
+    
+    const resultsEl = document.getElementById('search-results');
+    resultsEl.innerHTML = users.map(user => `
+      <div class="user-result" onclick="addParticipant(${user.id}, '${user.username}')">
+        <img src="/static/img/default-avatar.png" alt="${user.username}">
+        <div>
+          <div style="font-weight: 600;">${user.username}</div>
+          <div style="font-size: 0.75rem; color: #6b7280;">${user.email}</div>
+        </div>
+      </div>
+    `).join('');
+    resultsEl.style.display = 'block';
+  } catch (error) {
+    console.error('Error searching users:', error);
+  }
+}
+
+function addParticipant(userId, username) {
+  if (wizardData.participants.find(p => p.id === userId)) {
+    return; // Already added
+  }
+  
+  wizardData.participants.push({ id: userId, username });
+  updateParticipantsList();
+  document.getElementById('user-search').value = '';
+  document.getElementById('search-results').style.display = 'none';
+}
+
+function removeParticipant(userId) {
+  wizardData.participants = wizardData.participants.filter(p => p.id !== userId);
+  updateParticipantsList();
+}
+
+function updateParticipantsList() {
+  const count = wizardData.participants.length;
+  const section = document.getElementById('selected-section');
+  const list = document.getElementById('participant-list');
+  const warning = document.getElementById('budget-warning');
+  
+  if (count > 0) {
+    section.style.display = 'block';
+    document.getElementById('invite-count').textContent = count;
+    
+    list.innerHTML = wizardData.participants.map(p => `
+      <div class="participant-chip">
+        <img src="/static/img/default-avatar.png" alt="${p.username}">
+        <span>${p.username}</span>
+        <button class="remove-participant" onclick="removeParticipant(${p.id})">×</button>
+      </div>
+    `).join('');
+    
+    // Show warning if over budget
+    if (count > wizardData.availableCredits) {
+      warning.style.display = 'flex';
+    } else {
+      warning.style.display = 'none';
+    }
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+async function createDiscussion() {
+  try {
+    const response = await fetch('/api/discussions/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({
+        topic_headline: wizardData.headline,
+        topic_details: wizardData.topic,
+        max_response_length: wizardData.maxLength,
+        response_time_multiplier: wizardData.rtm,
+        invited_user_ids: wizardData.participants.map(p => p.id)
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      window.location.href = `/discussions/${data.discussion_id}/`;
+    } else {
+      const error = await response.json();
+      alert(error.error || 'Failed to create discussion');
+    }
+  } catch (error) {
+    console.error('Error creating discussion:', error);
+    alert('Network error. Please try again.');
+  }
+}
+
+function getCsrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+// Character counters
+document.getElementById('headline').addEventListener('input', (e) => {
+  document.getElementById('headline-count').textContent = e.target.value.length;
+});
+
+document.getElementById('topic').addEventListener('input', (e) => {
+  document.getElementById('topic-count').textContent = e.target.value.length;
+});
+</script>
+
+{% csrf_token %}
+{% endblock %}

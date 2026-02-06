@@ -227,6 +227,21 @@ def async_create_verified_user():
     return _create_user
 
 
+@pytest.fixture
+def async_create_discussion():
+    """
+    Create discussions asynchronously for E2E tests.
+    
+    Example:
+        discussion = await async_create_discussion(user, "Test Discussion")
+        discussion = await async_create_discussion(user, "Topic", topic_details="Details", status="voting")
+    """
+    async def _create_discussion(initiator, topic_headline: str, topic_details: str = "", **kwargs):
+        return await db_ops.create_discussion(initiator, topic_headline, topic_details, **kwargs)
+    
+    return _create_discussion
+
+
 # Async Login Helper
 @pytest.fixture
 def async_login_user():

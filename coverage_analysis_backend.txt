@@ -1,0 +1,105 @@
+BACKEND COVERAGE REPORT
+=======================
+Overall Coverage: 35.83%
+Target: 85%+
+Gap: 49.17%
+
+FILES BY COVERAGE LEVEL:
+
+✅ ABOVE 85% (Target Met):
+- core/admin.py: 98.02%
+- core/apps.py: 100.00%
+- core/urls.py: 100.00%
+- core/__init__.py: 100.00%
+- core/models.py: 84.72% (close - missing lines: 239, 293-297, 301, 310-333, etc.)
+- core/api/serializers.py: 82.86% (close - missing lines: 36-42, 74-79, 130, etc.)
+- core/api/mutual_removal.py: 81.25%
+
+⚠️ CLOSE TO 85% (Within 10%):
+- core/models.py: 84.72%
+- core/api/serializers.py: 82.86%
+- core/api/mutual_removal.py: 81.25%
+- core/services/email_service.py: 72.73%
+- core/services/quote_service.py: 66.67%
+- core/signals.py: 55.22%
+
+❌ BELOW 85% (Priority):
+HIGH PRIORITY (New Features - MUST Test):
+- core/services/voting_service.py: 31.93% (CRITICAL - voting credits system)
+- core/services/observer_service.py: 14.55% (CRITICAL - reintegration logic)
+- core/services/multi_round_service.py: 23.64% (CRITICAL - round transitions)
+- core/services/round_service.py: 19.29% (round management)
+- core/services/response_service.py: 19.15% (response submission)
+- core/services/mutual_removal_service.py: 14.91% (kamikaze mechanics)
+- core/services/join_request.py: 18.33% (join request handling)
+
+API ENDPOINTS (Low Coverage):
+- core/api/voting.py: 20.32% (CRITICAL - new join request voting)
+- core/api/discussions.py: 27.66%
+- core/api/responses.py: 27.62%
+- core/api/auth.py: 27.10%
+- core/api/moderation.py: 26.23%
+- core/api/health.py: 25.71%
+- core/api/invites.py: 36.97%
+- core/api/notifications.py: 40.34%
+- core/api/onboarding_join.py: 40.62%
+- core/api/admin.py: 33.33%
+
+SERVICES (Low Coverage):
+- core/services/admin_service.py: 14.84%
+- core/services/audit_service.py: 39.13%
+- core/services/discussion_presets.py: 27.27%
+- core/services/discussion_service.py: 31.15%
+- core/services/fcm_service.py: 30.26%
+- core/services/invite_service.py: 27.78%
+- core/services/moderation_voting_service.py: 40.58%
+- core/services/notification_service.py: 30.88%
+- core/services/onboarding.py: 46.67%
+
+SECURITY & UTILITIES:
+- core/security/abuse_detection.py: 39.73%
+- core/utils/sanitization.py: 32.00%
+
+OTHER:
+- core/consumers.py: 39.73% (WebSocket consumers)
+- core/auth/registration.py: 40.58%
+
+ZERO COVERAGE (Can be deprioritized):
+- core/management/commands/create_test_user.py: 0.00%
+- core/management/commands/seed_test_data.py: 0.00%
+- core/management/commands/show_test_codes.py: 0.00%
+- core/management/commands/simulate_discussion.py: 0.00%
+- core/routing.py: 0.00%
+
+CRITICAL GAPS IDENTIFIED:
+1. Voting credits system (voting_service) - NEW FEATURE, must be tested
+2. Join request voting (API + service) - NEW FEATURE, must be tested
+3. Round transition logic - CRITICAL PATH, must be tested
+4. Observer reintegration - CRITICAL MECHANIC, must be tested
+5. Service layer integration - ALL SERVICES need integration tests
+6. API endpoints - Most below 40% coverage
+
+ESTIMATED TESTS NEEDED:
+- Services: ~80-100 new tests
+- API endpoints: ~50-70 new tests
+- Models: ~10-15 new tests
+- Total backend: ~140-185 new tests to reach 85%
+
+PRIORITY ORDER:
+1. voting_service.py (31.93% → 85%) - NEW VOTING CREDITS FEATURE
+2. observer_service.py (14.55% → 85%) - CRITICAL REINTEGRATION
+3. multi_round_service.py (23.64% → 85%) - CRITICAL ROUND LOGIC
+4. round_service.py (19.29% → 85%)
+5. response_service.py (19.15% → 85%)
+6. core/api/voting.py (20.32% → 85%) - NEW JOIN REQUEST VOTING API
+7. mutual_removal_service.py (14.91% → 85%)
+8. join_request.py (18.33% → 85%)
+9. All other API endpoints
+10. Admin and notification services
+11. Security and utilities
+
+Next Steps:
+1. Create comprehensive service layer tests (Phase 2.1)
+2. Create comprehensive API endpoint tests (Phase 2.2)
+3. Add edge case and integration tests
+4. Fix any broken code discovered during testing

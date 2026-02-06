@@ -1,306 +1,601 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Vote on Changes{% endblock %}
+{% block title %}{{ discussion.topic_headline }} - Voting{% endblock %}
 
-{% block content %}
+{% block extra_css %}
 <style>
-.join-request-card button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+.voting-layout {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 120px;
 }
-.join-request-card button:disabled:hover {
-    background-color: inherit;
+
+.voting-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.mrp-timer-large {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #eff6ff;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.voting-section {
+  padding: 1.5rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.voting-section h2 {
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.help-text.warning {
+  color: #dc2626;
+}
+
+.voting-card {
+  background: white;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.current-value {
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.vote-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.vote-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vote-option:hover {
+  background: #f3f4f6;
+  border-color: #3b82f6;
+}
+
+.vote-option.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.vote-option .icon {
+  font-size: 1.5rem;
+}
+
+.vote-option .label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.vote-option .preview {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.join-request-card {
+  border-left: 4px solid #3b82f6;
+}
+
+.request-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.request-info img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.request-message {
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.vote-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn-vote {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-vote.approve {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-vote.approve:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.btn-vote.deny {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.btn-vote.deny:hover:not(:disabled) {
+  background: #d1d5db;
+}
+
+.btn-vote:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-vote.voted {
+  opacity: 0.7;
+}
+
+.vote-counts {
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.user-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.user-card img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.btn-vote-toggle {
+  width: 100%;
+  padding: 0.5rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-vote-toggle:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.btn-vote-toggle.selected {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.voting-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+}
+
+.voting-incentive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #fef3c7;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #92400e;
+}
+
+.submit-votes {
+  width: 100%;
+  padding: 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.submit-votes:hover {
+  background: #2563eb;
+}
+
+.skip-voting {
+  width: 100%;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .vote-options {
+    flex-direction: column;
+  }
+  
+  .user-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
+{% endblock %}
 
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-6">
-        <a href="{% url 'discussion-detail' discussion.id %}" class="text-blue-600 hover:text-blue-800 flex items-center">
-            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-            </svg>
-            Back to Discussion
-        </a>
+{% block content %}
+<div class="voting-layout" data-discussion-id="{{ discussion.id }}" data-round-id="{{ current_round.id }}">
+  <!-- Voting Header (Sticky) -->
+  <div class="voting-header">
+    <h1 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">Round {{ current_round.round_number }} Voting</h1>
+    <div class="mrp-timer-large">
+      <span>⏱️</span>
+      <span id="voting-timer">{{ voting_time_remaining }}</span>
+      <span style="font-size: 0.875rem; font-weight: normal;">remaining</span>
     </div>
+  </div>
 
-    <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-2">Inter-Round Voting</h1>
-        <p class="text-gray-600 mb-4">Vote on parameter changes and moderation actions for the next round.</p>
-        
-        <!-- Voting Window Timer -->
-        {% if voting_deadline %}
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div class="flex items-center">
-                <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                </svg>
-                <span class="text-blue-800 font-medium">Voting closes in <span id="voting-countdown" class="font-bold">...</span></span>
-            </div>
-        </div>
-        {% endif %}
+  <form id="voting-form">
+  <!-- Max Response Length Voting -->
+  <div class="voting-section">
+    <h2>Maximum Response Length</h2>
+    <p class="help-text">Vote to adjust the character limit for next round's responses</p>
+    
+    <div class="voting-card">
+      <div class="current-value">
+        Current: <strong>{{ discussion.max_response_length_chars }}</strong> characters
+      </div>
+      
+      <div class="vote-options">
+        <button class="vote-option" data-vote-type="mrl" data-vote-value="decrease" onclick="selectVote(this)">
+          <span class="icon">📉</span>
+          <span class="label">Decrease 10%</span>
+          <span class="preview">{{ mrl_decrease }}</span>
+        </button>
+        <button class="vote-option" data-vote-type="mrl" data-vote-value="no_change" onclick="selectVote(this)">
+          <span class="icon">━</span>
+          <span class="label">Keep Same</span>
+          <span class="preview">{{ discussion.max_response_length_chars }}</span>
+        </button>
+        <button class="vote-option" data-vote-type="mrl" data-vote-value="increase" onclick="selectVote(this)">
+          <span class="icon">📈</span>
+          <span class="label">Increase 10%</span>
+          <span class="preview">{{ mrl_increase }}</span>
+        </button>
+      </div>
     </div>
+  </div>
 
-    <form method="post" id="voting-form">
-        {% csrf_token %}
-        
-        <!-- Section 1: Parameter Changes -->
-        <div class="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">1. Parameter Changes</h2>
-            <p class="text-sm text-gray-600 mb-6">Vote on proposed changes to discussion parameters.</p>
-            
-            <div class="space-y-6">
-                <!-- Max Response Length -->
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h3 class="font-medium mb-2">Maximum Response Length (MRL)</h3>
-                    <div class="text-sm text-gray-600 mb-4">
-                        Current: <span class="font-semibold">{{ current_params.max_response_length_chars }}</span> characters
-                    </div>
-                    
-                    {% include "components/voting_ballot.html" with parameter="max_response_length" current=current_params.max_response_length_chars eligible_voters=eligible_voters %}
-                    
-                    <div class="mt-2 text-xs text-gray-500">
-                        Note: Not voting counts as "no change". {{ vote_threshold }}% of {{ eligible_voters }} eligible voters must agree for change to pass.
-                    </div>
-                </div>
+  <!-- Response Time Multiplier Voting -->
+  <div class="voting-section">
+    <h2>Response Time Multiplier</h2>
+    <p class="help-text">Vote to adjust how much time users have to respond</p>
+    
+    <div class="voting-card">
+      <div class="current-value">
+        Current: <strong>{{ discussion.response_time_multiplier }}x</strong>
+      </div>
+      
+      <div class="vote-options">
+        <button class="vote-option" data-vote-type="rtm" data-vote-value="decrease" onclick="selectVote(this)">
+          <span class="icon">⏩</span>
+          <span class="label">Decrease 10%</span>
+          <span class="preview">{{ rtm_decrease }}x</span>
+        </button>
+        <button class="vote-option" data-vote-type="rtm" data-vote-value="no_change" onclick="selectVote(this)">
+          <span class="icon">━</span>
+          <span class="label">Keep Same</span>
+          <span class="preview">{{ discussion.response_time_multiplier }}x</span>
+        </button>
+        <button class="vote-option" data-vote-type="rtm" data-vote-value="increase" onclick="selectVote(this)">
+          <span class="icon">⏱️</span>
+          <span class="label">Increase 10%</span>
+          <span class="preview">{{ rtm_increase }}x</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
-                <!-- Response Time Multiplier -->
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h3 class="font-medium mb-2">Response Time Multiplier (RTM)</h3>
-                    <div class="text-sm text-gray-600 mb-4">
-                        Current: <span class="font-semibold">{{ current_params.response_time_multiplier }}</span>
-                    </div>
-                    
-                    {% include "components/voting_ballot.html" with parameter="response_time_multiplier" current=current_params.response_time_multiplier eligible_voters=eligible_voters %}
-                </div>
-
-                <!-- Minimum Response Time -->
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h3 class="font-medium mb-2">Minimum Response Time (MRM)</h3>
-                    <div class="text-sm text-gray-600 mb-4">
-                        Current: <span class="font-semibold">{{ current_params.min_response_time_minutes }}</span> minutes
-                    </div>
-                    
-                    {% include "components/voting_ballot.html" with parameter="min_response_time" current=current_params.min_response_time_minutes eligible_voters=eligible_voters %}
-                </div>
-            </div>
+  <!-- Join Request Voting -->
+  {% if join_requests %}
+  <div class="voting-section">
+    <h2>Join Requests ({{ join_requests|length }})</h2>
+    <p class="help-text">Vote to approve users who want to join this discussion. Majority vote required.</p>
+    <p class="help-text warning">⚠️ Your votes are private and won't be shown to other users</p>
+    
+    {% for request in join_requests %}
+    <div class="voting-card join-request-card">
+      <div class="request-info">
+        <img src="{% static 'img/default-avatar.png' %}" alt="{{ request.requester.username }}">
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">{{ request.requester.username }}</div>
+          <div style="font-size: 0.75rem; color: #6b7280;">{{ request.created_at|timesince }} ago</div>
         </div>
+      </div>
+      
+      {% if request.request_message %}
+      <div class="request-message">{{ request.request_message }}</div>
+      {% endif %}
+      
+      <div class="vote-buttons">
+        <button class="btn-vote approve" data-request-id="{{ request.id }}" data-vote="approve" onclick="voteJoinRequest(this)">
+          ✓ Approve
+        </button>
+        <button class="btn-vote deny" data-request-id="{{ request.id }}" data-vote="deny" onclick="voteJoinRequest(this)">
+          Skip
+        </button>
+      </div>
+      
+      <div class="vote-counts">
+        <span id="approve-count-{{ request.id }}">Votes hidden until voting ends</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
-        <!-- Section 2: Join Request Voting -->
-        {% if pending_join_requests %}
-        <div class="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">2. Pending Join Requests</h2>
-            <p class="text-sm text-gray-600 mb-6">
-                Vote to approve or deny pending join requests.
-                Majority vote (&gt;50%) required for approval.
-            </p>
+  <!-- Removal Voting -->
+  {% if active_participants %}
+  <div class="voting-section">
+    <h2>Remove Participants</h2>
+    <p class="help-text">Vote to remove participants from the discussion. Majority vote required. Removed users can request to rejoin.</p>
+    <p class="help-text warning">⚠️ Your votes are private</p>
+    
+    <div class="user-grid">
+      {% for participant in active_participants %}
+      {% if participant.id != user.id %}
+      <div class="user-card">
+        <img src="{% static 'img/default-avatar.png' %}" alt="{{ participant.username }}">
+        <div style="font-weight: 600; text-align: center;">{{ participant.username }}</div>
+        <button class="btn-vote-toggle" data-user-id="{{ participant.id }}" onclick="toggleRemovalVote(this)">
+          Vote to Remove
+        </button>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  </form>
 
-            <div class="space-y-4">
-                {% for request in pending_join_requests %}
-                <div class="border border-gray-200 rounded-lg p-4 join-request-card" data-request-id="{{ request.id }}">
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <h3 class="font-medium">{{ request.user.username }}</h3>
-                            <p class="text-xs text-gray-500">Requested: {{ request.requested_at|date:"M d, Y" }}</p>
-                        </div>
-                    </div>
-
-                    {% if request.message %}
-                    <div class="bg-gray-50 rounded p-3 mb-3">
-                        <p class="text-sm text-gray-700 italic">"{{ request.message }}"</p>
-                    </div>
-                    {% endif %}
-
-                    <div class="flex gap-3 mb-3">
-                        <button
-                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium btn-approve"
-                            onclick="voteJoinRequest('{{ request.id }}', true)"
-                            {% if request.user_has_voted %}disabled{% endif %}>
-                            {% if request.user_has_voted and request.user_vote_approve %}✓ {% endif %}Approve
-                        </button>
-                        <button
-                            class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium btn-deny"
-                            onclick="voteJoinRequest('{{ request.id }}', false)"
-                            {% if request.user_has_voted %}disabled{% endif %}>
-                            {% if request.user_has_voted and not request.user_vote_approve %}✓ {% endif %}Deny
-                        </button>
-                    </div>
-
-                    <div class="flex gap-4 text-sm text-gray-600">
-                        <span class="approve-count">
-                            👍 <span class="count font-medium" data-type="approve">{{ request.approve_votes }}</span>
-                        </span>
-                        <span class="deny-count">
-                            👎 <span class="count font-medium" data-type="deny">{{ request.deny_votes }}</span>
-                        </span>
-                        <span class="total-votes text-gray-500">
-                            ({{ request.total_votes }} vote{{ request.total_votes|pluralize }})
-                        </span>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Section 3: Moderation Votes -->
-        {% if removal_targets %}
-        <div class="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">3. Remove Participants</h2>
-            <p class="text-sm text-gray-600 mb-6">
-                Vote to remove participants who are disruptive. Removal requires {{ removal_threshold }}% agreement.
-                Removed participants become permanent observers.
-            </p>
-
-            <div class="space-y-4">
-                {% for target in removal_targets %}
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h3 class="font-medium">{{ target.username }}</h3>
-                            <p class="text-sm text-gray-600">{{ target.response_count }} responses in this discussion</p>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-4">
-                        <label class="flex items-center">
-                            <input type="radio" name="removal_{{ target.id }}" value="remove" class="mr-2">
-                            <span>Remove</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" name="removal_{{ target.id }}" value="keep" class="mr-2" checked>
-                            <span>Keep</span>
-                        </label>
-                    </div>
-
-                    <div class="mt-2 text-xs text-gray-500">
-                        Current votes: <span class="font-medium">{{ target.removal_votes }}</span> of {{ eligible_voters }} eligible voters
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Submit Button -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <div class="flex justify-between items-center">
-                <div class="text-sm text-gray-600">
-                    <p class="font-medium mb-1">⚠️ Important:</p>
-                    <ul class="list-disc list-inside space-y-1">
-                        <li>You cannot change your votes after submitting</li>
-                        <li>Abstaining (not voting) counts as "no change"</li>
-                        <li>Voting window closes in <span id="deadline-display" class="font-semibold">...</span></li>
-                    </ul>
-                </div>
-                
-                <button 
-                    type="submit" 
-                    class="btn btn-primary px-8"
-                    onclick="return confirm('Are you sure you want to submit your votes? This cannot be undone.');"
-                >
-                    Submit All Votes
-                </button>
-            </div>
-        </div>
-    </form>
+  <!-- Voting Footer -->
+  <div class="voting-footer">
+    <div class="voting-incentive">
+      <span>💰</span>
+      <span>Vote to earn +0.2 Platform Invites and +1 Discussion Invite!</span>
+    </div>
+    
+    <button class="submit-votes" onclick="submitAllVotes()">
+      Submit All Votes
+    </button>
+    
+    <button class="skip-voting" onclick="skipVoting()">
+      Skip voting (no rewards)
+    </button>
+  </div>
 </div>
 
 <script>
-// Countdown timer
-const votingDeadline = new Date('{{ voting_deadline|date:"c" }}');
+const votes = {
+  mrl: null,
+  rtm: null,
+  join_requests: {},
+  removal: new Set()
+};
 
-function updateCountdown() {
-    const now = new Date();
-    const remaining = votingDeadline - now;
-
-    if (remaining <= 0) {
-        document.getElementById('voting-countdown').textContent = 'EXPIRED';
-        document.getElementById('deadline-display').textContent = 'EXPIRED';
-        document.getElementById('voting-form').innerHTML = '<div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center"><p class="text-red-800 font-medium">Voting window has closed.</p></div>';
-        return;
-    }
-
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-    const display = `${hours}h ${minutes}m ${seconds}s`;
-    document.getElementById('voting-countdown').textContent = display;
-    document.getElementById('deadline-display').textContent = display;
+function selectVote(button) {
+  const voteType = button.dataset.voteType;
+  const voteValue = button.dataset.voteValue;
+  
+  // Clear previous selection
+  document.querySelectorAll(`[data-vote-type="${voteType}"]`).forEach(btn => {
+    btn.classList.remove('selected');
+  });
+  
+  // Select this option
+  button.classList.add('selected');
+  votes[voteType] = voteValue;
 }
 
-setInterval(updateCountdown, 1000);
-updateCountdown();
+async function voteJoinRequest(button) {
+  const requestId = button.dataset.requestId;
+  const vote = button.dataset.vote;
+  
+  // Store vote locally
+  votes.join_requests[requestId] = vote;
+  
+  // Update UI
+  const container = button.closest('.voting-card');
+  container.querySelectorAll('.btn-vote').forEach(btn => {
+    btn.classList.remove('voted');
+  });
+  button.classList.add('voted');
+}
 
-// Join Request Voting
-function voteJoinRequest(requestId, approve) {
-    const discussionId = '{{ discussion.id }}';
-    const url = `/api/discussions/${discussionId}/vote/join-request/${requestId}/`;
+function toggleRemovalVote(button) {
+  const userId = button.dataset.userId;
+  
+  if (votes.removal.has(userId)) {
+    votes.removal.delete(userId);
+    button.classList.remove('selected');
+  } else {
+    votes.removal.add(userId);
+    button.classList.add('selected');
+  }
+}
 
-    fetch(url, {
-        method: 'POST',
-        headers: {
+async function submitAllVotes() {
+  const discussionId = document.querySelector('.voting-layout').dataset.discussionId;
+  const roundId = document.querySelector('.voting-layout').dataset.roundId;
+  
+  // Validate required votes
+  if (!votes.mrl || !votes.rtm) {
+    alert('Please vote on both Max Response Length and Response Time Multiplier');
+    return;
+  }
+  
+  try {
+    // Submit parameter votes
+    const paramResponse = await fetch(`/api/discussions/${discussionId}/rounds/{{ current_round.round_number }}/voting/parameters/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken()
+      },
+      body: JSON.stringify({
+        mrl_vote: votes.mrl,
+        rtm_vote: votes.rtm
+      })
+    });
+    
+    if (!paramResponse.ok) {
+      throw new Error('Failed to submit parameter votes');
+    }
+    
+    // Submit join request votes
+    for (const [requestId, vote] of Object.entries(votes.join_requests)) {
+      if (vote === 'approve') {
+        await fetch(`/api/discussions/join-requests/${requestId}/vote/`, {
+          method: 'POST',
+          headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCsrfToken()
+          },
+          body: JSON.stringify({ vote: 'approve' })
+        });
+      }
+    }
+    
+    // Submit removal votes
+    if (votes.removal.size > 0) {
+      await fetch(`/api/discussions/${discussionId}/rounds/{{ current_round.round_number }}/voting/removal/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken()
         },
-        body: JSON.stringify({ approve: approve })
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(err => { throw err; });
-        }
-        return response.json();
-    })
-    .then(data => {
-        // Update UI with new vote counts
-        const card = document.querySelector(`[data-request-id="${requestId}"]`);
-        if (!card) return;
+        body: JSON.stringify({
+          target_user_ids: Array.from(votes.removal)
+        })
+      });
+    }
+    
+    alert('Votes submitted! You earned +0.2 Platform Invites and +1 Discussion Invite');
+    window.location.href = '{% url "discussion-detail" discussion.id %}';
+    
+  } catch (error) {
+    console.error('Error submitting votes:', error);
+    alert('Failed to submit votes. Please try again.');
+  }
+}
 
-        card.querySelector('[data-type="approve"]').textContent = data.vote_counts.approve;
-        card.querySelector('[data-type="deny"]').textContent = data.vote_counts.deny;
-        card.querySelector('.total-votes').textContent =
-            `(${data.vote_counts.total} vote${data.vote_counts.total !== 1 ? 's' : ''})`;
+function skipVoting() {
+  if (confirm('Skip voting? You won\'t earn invite credits.')) {
+    window.location.href = '{% url "dashboard" %}';
+  }
+}
 
-        // Disable buttons
-        card.querySelectorAll('button').forEach(btn => btn.disabled = true);
-
-        // Mark user's choice
-        const approveBtn = card.querySelector('.btn-approve');
-        const denyBtn = card.querySelector('.btn-deny');
-        if (approve) {
-            approveBtn.innerHTML = '✓ Approve';
-            approveBtn.classList.add('opacity-80');
-        } else {
-            denyBtn.innerHTML = '✓ Deny';
-            denyBtn.classList.add('opacity-80');
-        }
-
-        // Show success message
-        showNotification('Vote recorded successfully', 'success');
-    })
-    .catch(error => {
-        console.error('Vote error:', error);
-        showNotification(error.error || 'Failed to record vote', 'error');
-    });
+function updateVotingTimer() {
+  const timer = document.getElementById('voting-timer');
+  const deadline = new Date('{{ voting_deadline|date:"c" }}');
+  const now = new Date();
+  const remaining = deadline - now;
+  
+  if (remaining > 0) {
+    const hours = Math.floor(remaining / 3600000);
+    const minutes = Math.floor((remaining % 3600000) / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    timer.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } else {
+    timer.textContent = 'Voting Closed';
+    document.querySelector('.submit-votes').disabled = true;
+  }
 }
 
 function getCsrfToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-           document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
 }
 
 function showNotification(message, type) {
-    // Simple notification system - could be enhanced
-    const color = type === 'success' ? 'green' : 'red';
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 bg-${color}-50 border border-${color}-200 text-${color}-800 px-6 py-3 rounded-lg shadow-lg z-50`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
+  alert(message);
 }
+
+// Update timer every second
+setInterval(updateVotingTimer, 1000);
+updateVotingTimer();
 </script>
+
+{% csrf_token %}
 {% endblock %}

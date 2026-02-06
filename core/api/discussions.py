@@ -259,3 +259,100 @@ def list_discussions(request):
     )
 
     return Response({"discussions": serializer.data})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_discussion_states(request):
+    """
+    GET /api/discussions/my-states/
+
+    Get current state of all discussions for dashboard.
+    Returns discussion cards with status, urgency, and action labels.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from core.models import DiscussionParticipant, Response, Round
+    
+    user = request.user
+    
+    # Get all participations
+    participations = DiscussionParticipant.objects.filter(
+        user=user
+    ).select_related('discussion')
+    
+    discussions = []
+    for participation in participations:
+        disc = participation.discussion
+        
+        # Get the latest active round
+        current_round = Round.objects.filter(
+            discussion=disc
+        ).order_by('-round_number').first()
+        
+        # Determine UI status and action
+        ui_status = 'waiting'
+        ui_icon = '⏸️'
+        action_label = 'Waiting for others'
+        urgency_level = 'low'
+        deadline_iso = None
+        
+        if participation.role == 'active':
+            if current_round and current_round.status == 'active':
+                has_responded = Response.objects.filter(
+                    round=current_round,
+                    user=user
+                ).exists()
+                
+                if not has_responded:
+                    ui_status = 'active-needs-response'
+                    ui_icon = '✍️'
+                    action_label = 'Your response needed'
+                    
+                    if current_round.mrp_deadline:
+                        deadline_iso = current_round.mrp_deadline.isoformat()
+                        remaining = current_round.mrp_deadline - timezone.now()
+                        if remaining.total_seconds() > 0:
+                            minutes = int(remaining.total_seconds() / 60)
+                            if minutes < 10:
+                                urgency_level = 'high'
+                            elif minutes < 60:
+                                urgency_level = 'medium'
+            
+            elif current_round and current_round.status == 'voting':
+                has_voted = current_round.votes.filter(user=user).exists()
+                
+                if not has_voted:
+                    ui_status = 'voting-available'
+                    ui_icon = '🗳️'
+                    action_label = 'Voting available'
+                    urgency_level = 'medium'
+                    
+                    if current_round.end_time and current_round.final_mrp_minutes:
+                        voting_deadline = current_round.end_time + timedelta(
+                            minutes=current_round.final_mrp_minutes
+                        )
+                        deadline_iso = voting_deadline.isoformat()
+        
+        elif participation.role == 'observer':
+            ui_status = 'observer'
+            ui_icon = '👁️'
+            action_label = 'Observing'
+        
+        discussions.append({
+            'id': disc.id,
+            'ui_status': ui_status,
+            'ui_icon': ui_icon,
+            'action_label': action_label,
+            'urgency_level': urgency_level,
+            'deadline_iso': deadline_iso,
+        })
+    
+    return Response({
+        'discussions': discussions,
+        'credits': {
+            'platform': float(user.platform_invites_banked),
+            'discussion': float(user.discussion_invites_banked),
+        }
+    })
+

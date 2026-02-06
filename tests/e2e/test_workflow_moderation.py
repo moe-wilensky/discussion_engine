@@ -28,123 +28,10 @@ User = get_user_model()
 pytestmark = [pytest.mark.playwright, pytest.mark.django_db(transaction=True), pytest.mark.asyncio]
 
 
-class TestMutualRemoval:
-    """Test mutual removal workflow - DEPRECATED as of 2026-02."""
-
-    @pytest.mark.skip(reason="Kamikaze/mutual removal feature deprecated 2026-02")
-    async def test_mutual_removal_initiation_and_confirmation(
-        self, page: Page, live_server_url: str, async_create_verified_user
-    ):
-        """
-        Test complete mutual removal workflow.
-
-        DEPRECATED: This test is kept for historical reference but skipped.
-        The kamikaze/mutual removal feature was removed in February 2026.
-        Use the removal voting system during inter-round voting phases instead.
-
-        Steps:
-        1. User A initiates mutual removal against User B
-        2. Modal appears with confirmation
-        3. User B receives notification
-        4. User B confirms removal
-        5. Both become observers
-        """
-        # Create three users
-        user_a = await async_create_verified_user("removal_initiator")
-        user_b = await async_create_verified_user("removal_target")
-        user_c = await async_create_verified_user("observer_user")
-
-        # Create discussion
-        discussion = await db_ops.create_discussion(
-            initiator=user_a,
-            topic_headline="Moderation Test Discussion",
-            topic_details="Testing mutual removal",
-            status="active",
-            max_response_length_chars=500,
-        )
-
-        # Add all users as active participants
-        await db_ops.create_participant(discussion, user_a, role="active")
-        await db_ops.create_participant(discussion, user_b, role="active")
-        await db_ops.create_participant(discussion, user_c, role="active")
-
-        # Create active round
-        round_obj = await db_ops.create_round(
-            discussion=discussion,
-            round_number=1,
-            status="in_progress",
-        )
-
-        # Get user details
-        user_a_username = await sync_to_async(lambda: user_a.username)()
-        discussion_id = await sync_to_async(lambda: discussion.id)()
-
-        # Login as User A
-        await page.goto(f"{live_server_url}/login/")
-        await page.fill('input[name="username"]', user_a_username)
-        await page.fill('input[name="password"]', "testpass123")
-        await page.click('button[type="submit"]')
-        await page.wait_for_load_state("networkidle")
-
-        # Navigate to discussion
-        await page.goto(f"{live_server_url}/discussions/{discussion_id}/")
-        await page.wait_for_load_state("networkidle")
-
-        # Look for mutual removal button or link
-        try:
-            # Try to find removal action for User B
-            removal_trigger = page.locator(
-                f'button:has-text("Remove")'
-            ).first
-
-            if await removal_trigger.is_visible():
-                await removal_trigger.click()
-                await page.wait_for_timeout(500)
-
-                # Check if modal appears
-                modal = page.locator("#mutual-removal-modal")
-                await expect(modal).to_be_visible()
-
-                # Verify modal content
-                await expect(modal).to_contain_text("Confirm Mutual Removal")
-                await expect(modal).to_contain_text("observer")
-
-                # Confirm removal
-                await page.click('button:has-text("Confirm Removal")')
-                await page.wait_for_load_state("networkidle")
-
-                # Verify moderation action was created
-                @sync_to_async(thread_sensitive=True)
-                def get_moderation_action():
-                    return ModerationAction.objects.filter(
-                        discussion=discussion,
-                        action_type="mutual_removal",
-                        initiator=user_a,
-                    ).first()
-
-                action = await get_moderation_action()
-
-                if action:
-                    target = await sync_to_async(lambda: action.target)()
-                    assert target in [user_b, None]
-        except Exception as e:
-            # UI may not be fully implemented
-            # Fallback: Create moderation action directly
-            @sync_to_async(thread_sensitive=True)
-            def create_moderation_action():
-                return ModerationAction.objects.create(
-                    discussion=discussion,
-                    action_type="mutual_removal",
-                    initiator=user_a,
-                    target=user_b,
-                    round_occurred=round_obj,
-                    is_permanent=False,
-                )
-
-            await create_moderation_action()
-
-        # Verify observer status (may require backend processing)
-        # In a full implementation, User A and B should be observers now
+# NOTE: TestMutualRemoval was deleted because the kamikaze/mutual removal feature
+# was deprecated in February 2026. The removal voting system during inter-round
+# voting phases replaced it. See test_workflow_join_request_voting.py for the
+# replacement tests.
 
 
 class TestObserverStatus:
@@ -174,7 +61,7 @@ class TestObserverStatus:
         )
 
         # User observer is an observer
-        await db_ops.create_participant(discussion, user_observer, role="observer")
+        await db_ops.create_participant(discussion, user_observer, role="temporary_observer")
 
         # User active is active
         await db_ops.create_participant(discussion, user_active, role="active")
@@ -315,12 +202,15 @@ class TestReintegration:
         # User is temporary observer
         @sync_to_async(thread_sensitive=True)
         def create_participant_with_reintegration():
-            return DiscussionParticipant.objects.create(
+            participant, _ = DiscussionParticipant.objects.update_or_create(
                 discussion=discussion,
                 user=user,
-                role="temporary_observer",
-                observer_since=timezone.now() - timedelta(hours=49),  # 49 hours ago (past 48h wait)
+                defaults={
+                    'role': "temporary_observer",
+                    'observer_since': timezone.now() - timedelta(hours=49),
+                },
             )
+            return participant
 
         participant = await create_participant_with_reintegration()
 
@@ -410,11 +300,12 @@ class TestReintegration:
         # User is permanent observer
         @sync_to_async(thread_sensitive=True)
         def create_permanent_observer():
-            return DiscussionParticipant.objects.create(
+            participant, _ = DiscussionParticipant.objects.update_or_create(
                 discussion=discussion,
                 user=user,
-                role="permanent_observer",
+                defaults={'role': "permanent_observer"},
             )
+            return participant
 
         await create_permanent_observer()
 

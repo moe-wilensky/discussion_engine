@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard - Discussion Engine{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-layout {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-profile img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.economy-widget {
+  display: flex;
+  gap: 1rem;
+}
+
+.credit-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  min-width: 80px;
+}
+
+.credit-display .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.credit-display .label {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.action-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-grid button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.discussion-list h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1f2937;
+}
+
+.discussion-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+}
+
+.status-badge.active-needs-response {
+  background: #22c55e;
+}
+
+.status-badge.voting-available {
+  background: #3b82f6;
+}
+
+.status-badge.waiting {
+  background: #e5e7eb;
+}
+
+.status-badge.observer {
+  background: #e5e7eb;
+}
+
+.card-title {
+  flex: 1;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.card-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+}
+
+.urgency {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.urgency.high {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.urgency.medium {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.urgency.low {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.action-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+@media (max-width: 640px) {
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .economy-widget {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .user-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+  <!-- User Header with Economy Widget -->
+  <div class="user-header">
+    <div class="user-profile">
+      <img src="{% static 'img/default-avatar.png' %}" alt="{{ user.username }}">
+      <div>
+        <div style="font-weight: 600; font-size: 1.125rem;">{{ user.username }}</div>
+        <div style="font-size: 0.875rem; color: #6b7280;">{{ user.email }}</div>
+      </div>
+    </div>
+    
+    <div class="economy-widget">
+      <div class="credit-display platform">
+        <span class="value">{{ user.platform_invites_banked }}</span>
+        <span class="label">Platform</span>
+      </div>
+      <div class="credit-display discussion">
+        <span class="value">{{ user.discussion_invites_banked|floatformat:0 }}</span>
+        <span class="label">Discussion</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="action-grid">
+    <button class="btn-primary" onclick="window.location.href='{% url 'discussion-create' %}'" {% if user.discussion_invites_banked < 1 %}disabled{% endif %}>
+      <span>➕</span>
+      <span>New Discussion</span>
+    </button>
+    <button class="btn-secondary" onclick="window.location.href='{% url 'invites' %}'">
+      <span>📧</span>
+      <span>Send Invites</span>
+    </button>
+    <button class="btn-secondary" onclick="window.location.href='{% url 'notifications' %}'">
+      <span>🔔</span>
+      <span>Notifications</span>
+    </button>
+    <button class="btn-secondary" onclick="window.location.href='{% url 'user-settings' %}'">
+      <span>⚙️</span>
+      <span>Settings</span>
+    </button>
+  </div>
+
+  <!-- Active Discussions List -->
+  <div class="discussion-list">
+    <h2>Your Discussions</h2>
+    
+    {% if discussions %}
+      {% for disc in discussions %}
+      <div class="discussion-card" data-discussion-id="{{ disc.id }}">
+        <div class="card-header">
+          <span class="status-badge {{ disc.ui_status }}">{{ disc.ui_icon }}</span>
+          <div style="flex: 1;">
+            <div class="card-title">{{ disc.topic_headline }}</div>
+            <div class="card-meta">
+              <span>Round {{ disc.current_round }}</span>
+              <span>•</span>
+              <span>{{ disc.participant_count }} participants</span>
+            </div>
+            
+            {% if disc.urgency %}
+            <div class="urgency {{ disc.urgency_level }}">
+              <span>⏰</span>
+              <span class="time-remaining" data-deadline="{{ disc.deadline_iso }}">{{ disc.time_remaining }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="action-label">{{ disc.action_label }}</div>
+          </div>
+        </div>
+        
+        <button onclick="window.location.href='{% url 'discussion-detail' disc.id %}'" style="width: 100%; padding: 0.5rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; cursor: pointer;">
+          {{ disc.button_text }}
+        </button>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align: center; padding: 3rem; color: #6b7280;">
+        <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">No active discussions</p>
+        <p style="font-size: 0.875rem;">Create a discussion or wait for an invite</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// Real-time discussion state updates
+function updateDiscussionStates() {
+  fetch('/api/discussions/my-states/')
+    .then(response => response.json())
+    .then(data => {
+      data.discussions.forEach(updateDiscussionCard);
+      updateEconomyWidget(data.credits);
+    })
+    .catch(error => console.error('Error updating states:', error));
+}
+
+function updateDiscussionCard(discussion) {
+  const card = document.querySelector(`[data-discussion-id="${discussion.id}"]`);
+  if (card) {
+    // Update status badge
+    const badge = card.querySelector('.status-badge');
+    badge.className = `status-badge ${discussion.ui_status}`;
+    badge.textContent = discussion.ui_icon;
+    
+    // Update urgency if present
+    const urgency = card.querySelector('.urgency');
+    if (urgency && discussion.deadline_iso) {
+      urgency.className = `urgency ${discussion.urgency_level}`;
+      const timeEl = urgency.querySelector('.time-remaining');
+      timeEl.dataset.deadline = discussion.deadline_iso;
+    }
+    
+    // Update action label
+    card.querySelector('.action-label').textContent = discussion.action_label;
+  }
+}
+
+function updateEconomyWidget(credits) {
+  document.querySelector('.credit-display.platform .value').textContent = credits.platform.toFixed(1);
+  document.querySelector('.credit-display.discussion .value').textContent = Math.floor(credits.discussion);
+}
+
+// Poll for updates every 30 seconds
+setInterval(updateDiscussionStates, 30000);
+
+// Update MRP timers every second
+setInterval(() => {
+  document.querySelectorAll('.time-remaining').forEach(el => {
+    const deadline = new Date(el.dataset.deadline);
+    const now = new Date();
+    const remaining = deadline - now;
+    
+    if (remaining > 0) {
+      const hours = Math.floor(remaining / 3600000);
+      const minutes = Math.floor((remaining % 3600000) / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      el.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+      el.textContent = 'Expired';
+      el.parentElement.classList.add('high');
+    }
+  });
+}, 1000);
+</script>
+{% endblock %}
